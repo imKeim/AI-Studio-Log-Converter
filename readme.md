@@ -85,23 +85,42 @@ Now, you can double-click the `start_watch_hidden.vbs` file to launch the conver
 
 You can compile the script into a single, portable `.exe` file using PyInstaller.
 
-1.  **Install PyInstaller:**
+### Method 1: Using the Build Script (Recommended for Windows)
+
+The easiest way to build the application on Windows is to use the provided batch script.
+
+1.  **Install dependencies:** Make sure you have installed all required packages for development:
     ```bash
-    pip install pyinstaller
+    pip install -r requirements-dev.txt
+    ```
+2.  **Run the script:** Simply double-click the `build.bat` file in the project's root directory.
+
+The script will automatically install all dependencies, run the PyInstaller build command with the correct options, and clean up temporary files.
+
+### Method 2: Manual Build
+
+If you are not on Windows or prefer to run the command manually, follow these steps:
+
+1.  **Install all dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    pip install -r requirements-dev.txt
     ```
 
 2.  **Navigate to the project directory** in your terminal.
 
 3.  **Run the build command:**
     ```bash
-    python -m PyInstaller --onefile --windowed --hidden-import watchdog ai-studio-log-converter.pyw
+    python -m PyInstaller --onefile --windowed --name "AI-Studio-Log-Converter" --icon="logo.ico" --add-data "src/custom_theme.json;." --add-data "logo.ico;." --add-data "logo.png;." "ai-studio-log-converter.pyw"
     ```
-    *   `--onefile`: This flag packages everything into a single executable file.
-    *   `--windowed`: This flag prevents the console window from appearing when the `.exe` is run.
-    *   `--hidden-import watchdog`: **Crucial!** Explicitly tells PyInstaller to include the `watchdog` library, which it might miss otherwise during static analysis.
-    *   `ai-studio-log-converter.pyw`: Make sure this matches the name of your Python script (note the `.pyw` extension for windowed applications).
+    *   `--onefile`: Packages everything into a single executable.
+    *   `--windowed`: Prevents the console window from appearing when the `.exe` is run.
+    *   `--name`: Sets the name of the final executable.
+    *   `--icon`: Sets the application icon from the `logo.ico` file.
+    *   `--add-data`: Bundles additional files into the executable. This is used to include the theme (`custom_theme.json`) and image assets (`logo.ico`, `logo.png`).
+    *   `ai-studio-log-converter.pyw`: The entry point script for the application.
 
-4.  **Find the result:** The final `ai-studio-log-converter.exe` file will be located in the `dist` folder.
+4.  **Find the result:** The final `AI-Studio-Log-Converter.exe` file will be located in the `dist` folder.
 
 ## Configuration
 
