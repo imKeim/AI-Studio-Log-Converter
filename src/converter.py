@@ -10,7 +10,7 @@ import sys
 from colorama import Fore, Style
 
 # This import is needed for the ignore_filenames list
-from .config import CONFIG_FILE_NAME
+from .config import CONFIG_FILE_NAME, CRASH_LOG_FILE, ASSETS_DIR_NAME
 
 __all__ = [
     "get_clean_title",
@@ -20,6 +20,160 @@ __all__ = [
     "find_json_files",
     "process_files",
 ]
+
+# --- Private Helper Functions for Refactoring ---
+
+def _read_log_data(json_path: Path) -> tuple[dict | None, str]:
+    """Reads and parses the JSON log file."""
+    try:
+        return json.loads(json_path.read_text(encoding='utf-8')), ""
+    except json.JSONDecodeError as e:
+        return None, f"Invalid JSON format. Details: {e}"
+    except Exception as e:
+        return None, f"Failed to read file. Details: {e}"
+
+def _build_frontmatter(json_path: Path, title: str, template: str) -> str:
+    """Builds the YAML frontmatter block."""
+    try:
+        mtime = datetime.fromtimestamp(json_path.stat().st_mtime)
+        cdate = mtime.strftime('%Y-%m-%d %H:%M:%S')
+        mdate = cdate
+        return template.format(title=title, cdate=cdate, mdate=mdate).strip()
+    except FileNotFoundError:
+        return ""
+
+def _build_metadata_table(log_data: dict, lang_templates: dict) -> str:
+    """Builds the Markdown table with run settings."""
+    run_settings = log_data.get('runSettings', {})
+    if not run_settings:
+        return ""
+
+    loc = lang_templates.get('metadata_table', {})
+    header_param = loc.get('header_parameter', 'Parameter')
+    header_value = loc.get('header_value', 'Value')
+    
+    table_rows = []
+    
+    model_name = run_settings.get('model', 'N/A')
+    clean_model_name = model_name.split('/')[-1]
+    table_rows.append(f"| {loc.get('model', '**Model**')} | `{clean_model_name}` |")
+    
+    if 'temperature' in run_settings:
+        table_rows.append(f"| {loc.get('temperature', '**Temperature**')} | `{run_settings['temperature']}` |")
+    if 'topP' in run_settings:
+        table_rows.append(f"| {loc.get('top_p', '**Top-P**')} | `{run_settings['topP']}` |")
+    if 'topK' in run_settings:
+        table_rows.append(f"| {loc.get('top_k', '**Top-K**')} | `{run_settings['topK']}` |")
+
+    search_enabled = 'googleSearch' in run_settings or run_settings.get('enableSearchAsATool', False)
+    search_text = loc.get('search_enabled', 'Enabled') if search_enabled else loc.get('search_disabled', 'Disabled')
+    table_rows.append(f"| {loc.get('web_search', '**Web Search**')} | {search_text} |")
+    
+    table_header = f"| {header_param} | {header_value} |\n| :--- | :--- |"
+    return table_header + "\n" + "\n".join(table_rows)
+
+def _build_conversation_turns(log_data: dict, md_path: Path, config: dict, lang_templates: dict) -> str:
+    """Builds the main conversation part of the Markdown file."""
+    system_instruction = (log_data.get('systemInstruction', {}).get('text') or '').strip()
+    prompt_data = log_data.get('chunkedPrompt', {})
+    chunks = prompt_data.get('chunks') or prompt_data.get('pendingInputs') or log_data.get('history', [])
+    
+    if not system_instruction and not chunks:
+        return ""
+
+    conversation_turns = []
+    i = 0
+    while i < len(chunks):
+        current_role = chunks[i].get('role')
+        if not current_role:
+            i += 1
+            continue
+
+        turn_chunks = []
+        j = i
+        while j < len(chunks) and chunks[j].get('role') == current_role:
+            turn_chunks.append(chunks[j])
+            j += 1
+        
+        turn_content = []
+        pending_thoughts = []
+        grounding_data = None
+        header = lang_templates.get(f"{current_role}_header", f"## {current_role.capitalize()}")
+
+        if i == 0 and current_role == 'user' and system_instruction:
+            spoiler_header = lang_templates.get('system_instruction_header', 'System Instruction ⚙️')
+            spoiler_template = lang_templates.get('system_instruction_template', '> [!note]- {header}\n> {text}')
+            indented_system_text = system_instruction.replace('\n', '\n> ')
+            spoiler_block = spoiler_template.format(header=spoiler_header, text=indented_system_text)
+            turn_content.append(spoiler_block)
+
+        for chunk in turn_chunks:
+            if current_role == 'model' and chunk.get('isThought'):
+                thought_text = (chunk.get('text') or '').strip()
+                if thought_text:
+                    thought_block = lang_templates['thought_block_template'].format(thought_text=thought_text.replace(chr(10), chr(10) + '> '))
+                    pending_thoughts.append(thought_block)
+                continue
+            
+            if 'grounding' in chunk:
+                grounding_data = chunk.get('grounding')
+            if 'text' in chunk:
+                turn_content.append(chunk.get('text', '').strip())
+            
+            if drive_image_data := chunk.get('driveImage'):
+                if drive_id := drive_image_data.get('id'):
+                    turn_content.append(f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
+            
+            if youtube_video_data := chunk.get('youtubeVideo'):
+                if video_id := youtube_video_data.get('id'):
+                    turn_content.append(f"[YouTube Video (ID: {video_id})](https://www.youtube.com/watch?v={video_id})")
+
+            if inline_data := chunk.get('inlineData'):
+                if b64_data := inline_data.get('data'):
+                    if mime_type := inline_data.get('mimeType'):
+                        turn_content.append(save_image_from_base64(b64_data, mime_type, md_path))
+
+            for part in chunk.get('parts', []):
+                part_content = []
+                if 'text' in part:
+                    part_content.append(part.get('text', '').strip())
+                
+                elif inline_data := part.get('inlineData'):
+                    if b64_data := inline_data.get('data'):
+                        if mime_type := inline_data.get('mimeType'):
+                            part_content.append(save_image_from_base64(b64_data, mime_type, md_path))
+                
+                elif drive_image_data := part.get('driveImage'):
+                    if drive_id := drive_image_data.get('id'):
+                        part_content.append(f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
+                
+                full_part_text = "".join(part_content)
+                if not any(full_part_text in content_part for content_part in turn_content):
+                    turn_content.extend(part_content)
+
+        if current_role == 'model':
+            if pending_thoughts:
+                turn_content = pending_thoughts + turn_content
+            if grounding_data and config.get('enable_grounding_metadata', False):
+                turn_content.append(format_grounding_data(grounding_data, lang_templates))
+
+        if turn_content:
+            conversation_turns.append(f"{header}\n\n" + "\n\n".join(filter(None, turn_content)))
+        
+        i = j
+
+    return "\n\n***\n\n".join(conversation_turns)
+
+def _write_markdown_file(md_path: Path, content: str) -> tuple[bool, str]:
+    """Writes the final content to the Markdown file."""
+    try:
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+        md_path.write_text(content, encoding='utf-8')
+        return True, ""
+    except IOError as e:
+        return False, f"Could not write output file. Details: {e}"
+
+# --- Public Functions ---
 
 def get_clean_title(base_title: str) -> str:
     """
@@ -35,12 +189,9 @@ def get_clean_title(base_title: str) -> str:
     Returns:
         str: The cleaned-up title without the date prefix.
     """
-    # Use a regular expression to find titles that start with a YYYY-MM-DD date pattern.
     match = re.match(r"^\d{4}-\d{2}-\d{2} - (.*)", base_title)
     if match:
-        # If a match is found, return the first capturing group, which is the title part.
         return match.group(1)
-    # If no match, return the original title.
     return base_title
 
 def save_image_from_base64(base64_data: str, mime_type: str, md_path: Path) -> str:
@@ -60,27 +211,20 @@ def save_image_from_base64(base64_data: str, mime_type: str, md_path: Path) -> s
     Returns:
         str: An Obsidian-style Markdown link to the saved image, or an error message if saving fails.
     """
-    # Define the 'assets' folder path, creating it if it doesn't exist.
-    assets_path = md_path.parent / "assets"
+    assets_path = md_path.parent / ASSETS_DIR_NAME
     assets_path.mkdir(exist_ok=True)
     
-    # Determine the file extension from the MIME type.
     extension = mime_type.split('/')[-1]
-    # Generate a unique filename to avoid collisions, using the markdown file's name and a timestamp.
     timestamp = int(datetime.now().timestamp() * 1000)
     image_filename = f"{md_path.stem}_img_{timestamp}.{extension}"
     image_path = assets_path / image_filename
     
     try:
-        # Decode the base64 string into binary image data.
         image_data = base64.b64decode(base64_data)
-        # Write the binary data to the new image file.
         with open(image_path, 'wb') as f:
             f.write(image_data)
-        # Return an Obsidian-style embed link.
         return f"![[{image_filename}]]"
     except (base64.binascii.Error, IOError) as e:
-        # If decoding or writing fails, return a descriptive error message.
         return f"[Error saving image: {e}]"
 
 def format_grounding_data(grounding_data: dict, lang_templates: dict) -> str:
@@ -99,44 +243,37 @@ def format_grounding_data(grounding_data: dict, lang_templates: dict) -> str:
     Returns:
         str: A formatted multi-line string for embedding in the final Markdown file.
     """
-    # Get localized strings for headers, with default fallbacks.
     loc = lang_templates.get('grounding_metadata', {})
     spoiler_header = loc.get('spoiler_header', "Sources Used")
     queries_header = loc.get('queries_header', "**Search Queries:**")
     sources_header = loc.get('sources_header', "**Sources:**")
     
-    # Start with the main spoiler block header.
     content = [f"> [!info]- {spoiler_header}"]
     
-    # Format the web search queries, if they exist.
     queries = grounding_data.get('webSearchQueries', [])
     if queries:
         content.append(f"> {queries_header}")
         for query in queries:
             content.append(f"> - `{query}`")
     
-    # Format the grounding sources, if they exist.
     sources = grounding_data.get('groundingSources', [])
     if sources:
-        if queries: content.append(">") # Add a spacer line for visual separation.
+        if queries: content.append(">")
         content.append(f"> {sources_header}")
         for source in sources:
             uri = source.get('uri')
-            # Use the source title, or fall back to the hostname from the URI.
             title = source.get('title') or urlparse(uri).hostname if uri else "Source"
             num = source.get('referenceNumber', '')
             content.append(f"> {num}. [{title}]({uri})")
             
-    # Join all the formatted lines into a single string.
     return "\n".join(content)
 
 def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, lang_templates: dict, frontmatter_template: str) -> (bool, str):
     """
     Converts a single AI Studio JSON log file into a structured Markdown file.
 
-    This is the main function that orchestrates the entire conversion process for one file.
-    It reads the JSON log, processes its structure, extracts conversations, handles metadata,
-    and writes the final, formatted content to a Markdown file.
+    This function now acts as a high-level orchestrator, delegating tasks
+    to smaller, specialized helper functions.
 
     Args:
         json_path (Path): The path to the input JSON log file.
@@ -149,201 +286,38 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
         tuple[bool, str]: A tuple containing a boolean indicating success (True) or failure (False),
                           and a string with an error message if the conversion failed.
     """
-    try:
-        # Attempt to read and parse the JSON file. This is the first and most critical step.
-        log_data = json.loads(json_path.read_text(encoding='utf-8'))
-    except json.JSONDecodeError as e:
-        return False, f"Invalid JSON format. Details: {e}"
-    except Exception as e:
-        return False, f"Failed to read file. Details: {e}"
+    log_data, error_msg = _read_log_data(json_path)
+    if not log_data:
+        return False, error_msg
 
-    # Clean the title for use in the Markdown content.
-    final_title = get_clean_title(md_path.stem)
-
-    # This list will accumulate all parts of the Markdown file before being joined together.
-    full_md_content = []
-    # Optionally, add YAML frontmatter for organization in tools like Obsidian.
-    if config.get('enable_frontmatter', False):
-        try:
-            # Use the file's modification time for creation and modification dates.
-            file_mtime_str = datetime.fromtimestamp(json_path.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-            cdate = file_mtime_str
-            mdate = file_mtime_str
-            # Format and add the frontmatter to the content.
-            full_md_content.append(frontmatter_template.format(title=final_title, cdate=cdate, mdate=mdate).strip())
-        except FileNotFoundError:
-            # Ignore if the file doesn't exist, though this is unlikely here.
-            pass
-
-    # Add the main H1 title of the document.
-    full_md_content.append(f"# {final_title}")
-
-    # Optionally, add a metadata table with details about the model and its settings.
-    if config.get('enable_metadata_table', False):
-        run_settings = log_data.get('runSettings', {})
-        if run_settings:
-            loc = lang_templates.get('metadata_table', {})
-            header_param = loc.get('header_parameter', 'Parameter')
-            header_value = loc.get('header_value', 'Value')
-            
-            table_rows = []
-            
-            model_name = run_settings.get('model', 'N/A')
-            clean_model_name = model_name.split('/')[-1]
-            table_rows.append(f"| {loc.get('model', '**Model**')} | `{clean_model_name}` |")
-            
-            if 'temperature' in run_settings:
-                table_rows.append(f"| {loc.get('temperature', '**Temperature**')} | `{run_settings['temperature']}` |")
-            
-            if 'topP' in run_settings:
-                table_rows.append(f"| {loc.get('top_p', '**Top-P**')} | `{run_settings['topP']}` |")
-
-            if 'topK' in run_settings:
-                table_rows.append(f"| {loc.get('top_k', '**Top-K**')} | `{run_settings['topK']}` |")
-
-            search_enabled = 'googleSearch' in run_settings or run_settings.get('enableSearchAsATool', False)
-            search_text = loc.get('search_enabled', 'Enabled') if search_enabled else loc.get('search_disabled', 'Disabled')
-            table_rows.append(f"| {loc.get('web_search', '**Web Search**')} | {search_text} |")
-            
-            table_header = f"| {header_param} | {header_value} |\n| :--- | :--- |"
-            full_table = table_header + "\n" + "\n".join(table_rows)
-            full_md_content.append(full_table + "\n\n***")
-
-    # This list will hold the formatted user and model turns.
-    conversation_turns = []
-    
-    # Extract the system instruction, which defines the model's persona or task.
-    system_instruction = (log_data.get('systemInstruction', {}).get('text') or '').strip()
-    prompt_data = log_data.get('chunkedPrompt', {})
-    # The actual conversation content is in 'chunks', 'pendingInputs', or 'history'.
-    # We check them in order of preference to find the conversation data.
-    chunks = prompt_data.get('chunks') or prompt_data.get('pendingInputs') or log_data.get('history', [])
-    
-    # If there's no conversation data at all, the file is not a valid log.
-    if not system_instruction and not chunks:
+    # Check for essential content after reading the file.
+    if not log_data.get('systemInstruction') and not (log_data.get('chunkedPrompt', {}).get('chunks') or log_data.get('history')):
         return False, "JSON file contains no 'systemInstruction' and no valid dialog structure."
 
-    # We iterate through the chunks to reconstruct the conversation turn by turn.
-    i = 0
-    while i < len(chunks):
-        # Determine the role of the current speaker (e.g., 'user' or 'model').
-        current_role = chunks[i].get('role')
-        if not current_role:
-            # Skip any chunks that don't have a role.
-            i += 1
-            continue
+    final_title = get_clean_title(md_path.stem)
+    
+    # This list will accumulate all parts of the Markdown file.
+    md_parts = []
+    
+    if config.get('enable_frontmatter', False):
+        md_parts.append(_build_frontmatter(json_path, final_title, frontmatter_template))
 
-        # Group all consecutive chunks from the same role into a single "turn".
-        turn_chunks = []
-        j = i
-        while j < len(chunks) and chunks[j].get('role') == current_role:
-            turn_chunks.append(chunks[j])
-            j += 1
-        
-        # This list will hold all the content pieces for the current turn.
-        turn_content = []
-        pending_thoughts = []
-        grounding_data = None
-        # Get the appropriate header for the role (e.g., "## User" or "## Model").
-        header = lang_templates.get(f"{current_role}_header", f"## {current_role.capitalize()}")
+    md_parts.append(f"# {final_title}")
 
-        # Special case: If this is the very first turn and it's from the user,
-        # embed the system instruction within a collapsible block for context.
-        if i == 0 and current_role == 'user' and system_instruction:
-            spoiler_header = lang_templates.get('system_instruction_header', 'System Instruction ⚙️')
-            spoiler_template = lang_templates.get('system_instruction_template', '> [!note]- {header}\n> {text}')
-            # Indent the system text to fit within the blockquote format.
-            indented_system_text = system_instruction.replace('\n', '\n> ')
-            spoiler_block = spoiler_template.format(header=spoiler_header, text=indented_system_text)
-            turn_content.append(spoiler_block)
+    if config.get('enable_metadata_table', False):
+        metadata_table = _build_metadata_table(log_data, lang_templates)
+        if metadata_table:
+            md_parts.append(metadata_table)
+            md_parts.append("\n\n***")
 
-        # Process each chunk within the current turn.
-        for chunk in turn_chunks:
-            # Handle "thoughts": internal monologue of the model, useful for debugging.
-            if current_role == 'model' and chunk.get('isThought'):
-                thought_text = (chunk.get('text') or '').strip()
-                if thought_text:
-                    # Format the thought into a collapsible block.
-                    thought_block = lang_templates['thought_block_template'].format(thought_text=thought_text.replace(chr(10), chr(10) + '> '))
-                    pending_thoughts.append(thought_block)
-                continue # Skip to the next chunk
-            
-            # Store grounding data if it exists in this chunk.
-            if 'grounding' in chunk:
-                grounding_data = chunk['grounding']
+    conversation_md = _build_conversation_turns(log_data, md_path, config, lang_templates)
+    if conversation_md:
+        md_parts.append(conversation_md)
 
-            # Append simple text content.
-            if 'text' in chunk:
-                turn_content.append(chunk['text'].strip())
-            
-            # Handle images from Google Drive.
-            if 'driveImage' in chunk:
-                drive_id = chunk['driveImage'].get('id')
-                if drive_id:
-                    # Create a placeholder link as we can't access the image directly.
-                    placeholder = f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})"
-                    turn_content.append(placeholder)
-            
-            # Handle YouTube video links.
-            if 'youtubeVideo' in chunk:
-                video_id = chunk['youtubeVideo'].get('id')
-                if video_id:
-                    placeholder = f"[YouTube Video (ID: {video_id})](https://www.youtube.com/watch?v={video_id})"
-                    turn_content.append(placeholder)
-
-            # Handle inline images (base64 encoded).
-            if 'inlineData' in chunk:
-                image_link = save_image_from_base64(chunk['inlineData']['data'], chunk['inlineData']['mimeType'], md_path)
-                turn_content.append(image_link)
-
-            # Some chunks have a 'parts' array containing mixed content (text and images).
-            for part in chunk.get('parts', []):
-                part_content = []
-                if 'text' in part:
-                    part_content.append(part['text'].strip())
-                elif 'inlineData' in part: # Embedded image data.
-                    image_link = save_image_from_base64(part['inlineData']['data'], part['inlineData']['mimeType'], md_path)
-                    part_content.append(image_link)
-                elif 'driveImage' in part: # Google Drive image.
-                    drive_id = part['driveImage'].get('id')
-                    if drive_id:
-                        placeholder = f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})"
-                        part_content.append(placeholder)
-                
-                # This check prevents duplicating content that might appear in both
-                # the outer chunk and its 'parts'.
-                full_part_text = "".join(part_content)
-                if not any(full_part_text in content_part for content_part in turn_content):
-                    turn_content.extend(part_content)
-
-        # After processing all chunks in a turn, assemble the final content for that turn.
-        if current_role == 'model':
-            # Prepend any "thoughts" to the model's response.
-            if pending_thoughts:
-                turn_content = pending_thoughts + turn_content
-            # Append grounding data if it exists and is enabled in the config.
-            if grounding_data and config.get('enable_grounding_metadata', False):
-                grounding_md = format_grounding_data(grounding_data, lang_templates)
-                turn_content.append(grounding_md)
-
-        # If the turn has any content, format it with its header and add to the list of turns.
-        if turn_content:
-            conversation_turns.append(f"{header}\n\n" + "\n\n".join(filter(None, turn_content)))
-        
-        # Move the main loop index to the start of the next turn.
-        i = j
-
-    # Join the main content blocks (frontmatter, title, metadata) and the conversation turns.
-    final_md_output = "\n\n".join(full_md_content) + "\n\n***\n\n" + "\n\n***\n\n".join(conversation_turns)
-
-    try:
-        # Ensure the output directory exists.
-        md_path.parent.mkdir(parents=True, exist_ok=True)
-        # Write the fully assembled Markdown content to the output file.
-        md_path.write_text(final_md_output, encoding='utf-8')
-        return True, ""
-    except IOError as e:
-        return False, f"Could not write output file. Details: {e}"
+    # Join all parts with consistent spacing.
+    final_md_output = "\n\n".join(filter(None, md_parts))
+    
+    return _write_markdown_file(md_path, final_md_output)
 
 def find_json_files(path: Path, recursive: bool, fast_mode: bool = False):
     """
@@ -394,7 +368,7 @@ def find_json_files(path: Path, recursive: bool, fast_mode: bool = False):
 
     valid_json_files = []
     # Ignore configuration and other known files to avoid processing them.
-    ignore_filenames = [CONFIG_FILE_NAME, 'crash_log.txt', 'frontmatter_template_en.txt', 'frontmatter_template_ru.txt']
+    ignore_filenames = [CONFIG_FILE_NAME, CRASH_LOG_FILE, 'frontmatter_template_en.txt', 'frontmatter_template_ru.txt']
     
     print(f"Scanning {len(all_potential_files)} files...")
     with tqdm(all_potential_files, desc="Scanning files", unit="file", file=sys.stdout) as pbar:

@@ -17,7 +17,8 @@ from src.config import (
     load_or_create_template,
     DEFAULT_CONFIG,
     DEFAULT_INPUT_DIR,
-    DEFAULT_OUTPUT_DIR
+    DEFAULT_OUTPUT_DIR,
+    CRASH_LOG_FILE
 )
 from src.converter import (
     find_json_files,
@@ -54,15 +55,14 @@ def log_crash(exc_info):
     Logs unhandled exceptions to a file and displays a user-friendly error popup.
     This prevents the application from closing silently on a critical error.
     """
-    log_file = "crash_log.txt"
     # The traceback module provides a detailed, formatted exception string.
     error_details = "".join(traceback.format_exception(exc_info[0], exc_info[1], exc_info[2]))
     
     try:
-        with open(log_file, "w", encoding="utf-8") as f:
+        with open(CRASH_LOG_FILE, "w", encoding="utf-8") as f:
             f.write("A critical error occurred:\n")
             f.write(error_details)
-        print(f"Critical error. Details saved to {log_file}")
+        print(f"Critical error. Details saved to {CRASH_LOG_FILE}")
     except Exception as e:
         print(f"Failed to write crash log: {e}")
 
@@ -74,7 +74,7 @@ def log_crash(exc_info):
         root.withdraw()  # Hide the empty root window.
         messagebox.showerror(
             "Application Crash",
-            f"A critical error occurred!\n\nDetails have been saved to {log_file}"
+            f"A critical error occurred!\n\nDetails have been saved to {CRASH_LOG_FILE}"
         )
     except Exception as e:
         print(f"Failed to show crash popup: {e}")

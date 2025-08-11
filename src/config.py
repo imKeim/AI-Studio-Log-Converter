@@ -17,6 +17,7 @@ from colorama import Fore, Style
 # Using constants for filenames and directories prevents "magic strings"
 # and makes the code easier to maintain and refactor.
 CONFIG_FILE_NAME = "config.yaml"
+CRASH_LOG_FILE = "crash_log.txt"
 DEFAULT_INPUT_DIR = "input"
 DEFAULT_OUTPUT_DIR = "output"
 ASSETS_DIR_NAME = "assets"
