@@ -1,0 +1,12 @@
+---
+title: "{title}"
+aliases:
+  - "{title}"
+para: ресурс
+type: llm-лог
+kind: google-ai-studio
+tags: 
+status: архивировано
+cdate: {cdate}
+mdate: {mdate}
+---
