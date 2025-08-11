@@ -112,6 +112,7 @@ def main():
     parser.add_argument("-r", "--recursive", action="store_true", help="Search recursively.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--watch", action="store_true", help="Run in watch mode to automatically convert new files.")
+    parser.add_argument("--fast", action="store_true", help="Enable Fast Mode: only scan files without extensions.")
     parser.add_argument("-c", "--cli", action="store_true", help="Force run in command-line interactive mode instead of GUI.")
     
     args = parser.parse_args()
@@ -129,7 +130,7 @@ def main():
     
     elif args.input_path is not None:
         # Batch mode: process a specific file or folder once and exit.
-        files = find_json_files(args.input_path, args.recursive)
+        files = find_json_files(args.input_path, args.recursive, args.fast)
         if not files:
             print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{args.input_path}'.")
             if args.input_path == input_dir_default:

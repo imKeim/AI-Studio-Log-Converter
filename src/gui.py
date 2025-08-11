@@ -113,7 +113,7 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
             output_path_entry.delete(0, 'end')
             output_path_entry.insert(0, path)
 
-    def conversion_worker(input_path, output_dir, recursive, overwrite, watch_mode):
+    def conversion_worker(input_path, output_dir, recursive, overwrite, watch_mode, fast_mode):
         """
         This function contains the long-running logic and is executed in a background thread.
         """
@@ -130,7 +130,7 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
                     print(f"python ai-studio-log-converter.pyw \"{input_path}\" --watch")
             else:
                 # This is the long-running part: finding and processing files.
-                files = find_json_files(input_path, recursive)
+                files = find_json_files(input_path, recursive, fast_mode)
                 if not files:
                     print(f"\n⚠️ No valid JSON files found in '{input_path}'.")
                 else:
@@ -162,11 +162,12 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
         recursive = recursive_var.get()
         overwrite = overwrite_var.get()
         watch_mode = watch_var.get()
+        fast_mode = fast_mode_var.get()
 
         # Create and start the background thread to do the heavy lifting.
         worker_thread = threading.Thread(
             target=conversion_worker,
-            args=(input_path, output_dir, recursive, overwrite, watch_mode)
+            args=(input_path, output_dir, recursive, overwrite, watch_mode, fast_mode)
         )
         worker_thread.daemon = True  # Allows the app to exit even if the thread is running.
         worker_thread.start()
@@ -213,6 +214,10 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     checkbox_frame = ctk.CTkFrame(settings_frame, fg_color="transparent", border_width=0)
     checkbox_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="w")
     
+    fast_mode_var = ctk.BooleanVar(value=True)
+    fast_mode_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Fast Mode (no extension)", variable=fast_mode_var)
+    fast_mode_checkbox.pack(side="left", padx=5)
+
     recursive_var = ctk.BooleanVar()
     recursive_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Search Recursively", variable=recursive_var)
     recursive_checkbox.pack(side="left", padx=5)

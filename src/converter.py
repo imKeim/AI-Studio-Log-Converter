@@ -9,6 +9,9 @@ from tqdm import tqdm
 import sys
 from colorama import Fore, Style
 
+# This import is needed for the ignore_filenames list
+from .config import CONFIG_FILE_NAME
+
 __all__ = [
     "get_clean_title",
     "save_image_from_base64",
@@ -342,57 +345,70 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
     except IOError as e:
         return False, f"Could not write output file. Details: {e}"
 
-def find_json_files(path: Path, recursive: bool):
+def find_json_files(path: Path, recursive: bool, fast_mode: bool = False):
     """
-    Scans a directory (or a single file) to find all valid JSON files.
-
-    This function is responsible for locating the source files for conversion.
-    It can operate recursively and includes a progress bar for long scans.
-    It validates files by attempting to parse them as JSON, ensuring that only
-    well-formed logs are processed.
+    Scans a directory to find all valid JSON files.
 
     Args:
-        path (Path): The starting path to search, which can be a file or a directory.
-        recursive (bool): If True, scans all subdirectories of the given path.
-
-    Returns:
-        list[Path]: A sorted list of paths to valid JSON files.
+        path (Path): The starting path to search.
+        recursive (bool): If True, scans all subdirectories.
+        fast_mode (bool): If True, instantly returns all files without an extension,
+                          skipping the slow validation step.
     """
     if not path.exists():
         return []
-    files_to_check = []
-    if path.is_file():
-        files_to_check.append(path)
-    elif path.is_dir():
-        if recursive:
-            # Walk through all directories and subdirectories.
-            for root, _, filenames in os.walk(path):
-                for filename in filenames:
-                    files_to_check.append(Path(root) / filename)
-        else:
-            # Scan only the top-level directory.
-            for filename in os.listdir(path):
-                file_path = path / filename
-                if file_path.is_file():
+
+    # --- Fast Mode ---
+    # This mode assumes that any file without an extension is a potential log file.
+    # It skips the slow content validation (json.load) for a massive speed boost.
+    if fast_mode:
+        print("Fast Mode enabled: Assuming files without an extension are logs.")
+        files_to_check = []
+        if path.is_file():
+            if not path.suffix:
+                files_to_check.append(path)
+        elif path.is_dir():
+            glob_pattern = '**/*' if recursive else '*'
+            for file_path in path.glob(glob_pattern):
+                if file_path.is_file() and not file_path.suffix:
                     files_to_check.append(file_path)
-    
+        
+        print(f"Found {len(files_to_check)} potential logs to convert.")
+        return sorted(files_to_check)
+
+    # --- Normal (Reliable) Mode ---
+    # This mode reads every single file to ensure it's a valid JSON, making it
+    # much slower but 100% accurate.
+    print("Normal Mode: Verifying every file to find valid JSONs...")
+    all_potential_files = []
+    if path.is_file():
+        all_potential_files.append(path)
+    elif path.is_dir():
+        glob_pattern = '**/*' if recursive else '*'
+        for file_path in path.glob(glob_pattern):
+            if file_path.is_file():
+                all_potential_files.append(file_path)
+
+    if not all_potential_files:
+        return []
+
     valid_json_files = []
-    # Define file extensions to ignore to speed up scanning.
-    ignore_extensions = ['.py', '.exe', '.yaml', '.txt', '.md', '.spec', '.zip']
-    print(f"Scanning {len(files_to_check)} files to find valid JSONs...")
-    # Use tqdm for a user-friendly progress bar.
-    for file_path in tqdm(files_to_check, desc="Scanning files", unit="file", file=sys.stdout):
-        if file_path.suffix.lower() in ignore_extensions:
-            continue
-        try:
-            # The core validation: can the file be opened and parsed as JSON?
-            with open(file_path, 'r', encoding='utf-8') as f:
-                json.load(f)
-            # If successful, add it to our list of valid files.
-            valid_json_files.append(file_path)
-        except (json.JSONDecodeError, UnicodeDecodeError, PermissionError, IsADirectoryError):
-            # Ignore files that are not valid JSON, unreadable, or are directories.
-            continue
+    # Ignore configuration and other known files to avoid processing them.
+    ignore_filenames = [CONFIG_FILE_NAME, 'crash_log.txt', 'frontmatter_template_en.txt', 'frontmatter_template_ru.txt']
+    
+    print(f"Scanning {len(all_potential_files)} files...")
+    with tqdm(all_potential_files, desc="Scanning files", unit="file", file=sys.stdout) as pbar:
+        for file_path in pbar:
+            if file_path.name in ignore_filenames:
+                continue
+            try:
+                # This is the slow but reliable validation step.
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    json.load(f)
+                valid_json_files.append(file_path)
+            except (json.JSONDecodeError, UnicodeDecodeError, PermissionError, IsADirectoryError, IOError):
+                continue
+                
     return sorted(valid_json_files)
 
 def process_files(files_to_process, output_dir, overwrite, config, lang_templates, frontmatter_template):

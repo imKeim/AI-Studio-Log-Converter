@@ -11,6 +11,8 @@ CLI logic from the core conversion and GUI code.
 __all__ = ["run_watch_mode", "run_interactive_mode", "LogFileEventHandler"]
 
 import time
+import json
+from datetime import datetime
 from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -116,7 +118,7 @@ def run_watch_mode(input_dir, output_dir, overwrite, config, lang_templates, fro
     
     # It's helpful to process any files that already exist when the mode starts.
     print(Style.BRIGHT + "Performing initial scan of the directory...")
-    initial_files = find_json_files(input_dir, recursive=False)
+    initial_files = find_json_files(input_dir, recursive=False, fast_mode=False) # Watch mode should always be reliable
     if initial_files:
         process_files(initial_files, output_dir, overwrite, config, lang_templates, frontmatter_template)
     else:
@@ -161,15 +163,18 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
     
     # Prompt the user for the source path, with validation.
     while True:
-        src_path_str = input(Fore.CYAN + f"➡️ Enter source path (default: '{DEFAULT_INPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_INPUT_DIR
+        src_path_str = input(Fore.CYAN + f"➡️ Enter source path (default: '{DEFAULT_INPUT_DIR}'): " + Style.RESET_ALL).strip() or str(DEFAULT_INPUT_DIR)
         src_path = Path(src_path_str)
         if src_path.exists():
             break
         print(Fore.RED + f"❌ Error: The path '{src_path}' does not exist. Please try again.")
 
     # Prompt for the remaining options.
-    out_path_str = input(Fore.CYAN + f"➡️ Enter output path (default: '{DEFAULT_OUTPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_OUTPUT_DIR
+    out_path_str = input(Fore.CYAN + f"➡️ Enter output path (default: '{DEFAULT_OUTPUT_DIR}'): " + Style.RESET_ALL).strip() or str(DEFAULT_OUTPUT_DIR)
     output_dir = Path(out_path_str)
+
+    fast_mode_str = input(Fore.CYAN + "➡️ Use Fast Mode (scan only files without extension)? (Y/n, default: Y): " + Style.RESET_ALL).strip().lower()
+    fast_mode = fast_mode_str != 'n'
 
     recursive_str = input(Fore.CYAN + "➡️ Search recursively in subfolders? (y/N, default: N): " + Style.RESET_ALL).strip().lower()
     recursive = recursive_str == 'y'
@@ -178,7 +183,7 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
     overwrite = overwrite_str == 'y'
 
     # Find all the files to be processed based on user input.
-    files = find_json_files(src_path, recursive)
+    files = find_json_files(src_path, recursive, fast_mode)
     if not files:
         print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{src_path}'.")
         print(Fore.YELLOW + "Please place your files there and run the program again.")
