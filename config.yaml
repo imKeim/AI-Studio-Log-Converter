@@ -1,0 +1,73 @@
+# --- AI Studio Log Converter Settings ---
+
+# Language for the generated Markdown files. (en/ru)
+language: 'en'
+
+# Enable/disable the YAML frontmatter block at the start of the file.
+enable_frontmatter: true
+
+# Enable/disable the metadata table with run settings (Model, Temperature, etc.).
+enable_metadata_table: true
+
+# Enable/disable the grounding metadata block (web search sources) at the end of Template for the output filename.
+# Available variables: {date}, {basename}
+filename_template: '{date} - {basename}.md'
+
+# Date format for the {date} variable in the filename.
+# Python strftime syntax: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+date_format: '%Y-%m-%d'
+
+# --- Localization Settings ---
+# Text templates for different languages.
+# The 'language' setting above determines which set of templates to use.
+localization:
+  en:
+    user_header: '## User Prompt 👤'
+    model_header: '## Model Response 🤖'
+    thought_block_template: '> [!bug]- Model Thoughts 🧠
+
+      > {thought_text}'
+    system_instruction_header: System Instruction ⚙️
+    system_instruction_template: '> [!note]- {header}
+
+      > {text}'
+    metadata_table:
+      header_parameter: Parameter
+      header_value: Value
+      model: '**Model**'
+      temperature: '**Temperature**'
+      top_p: '**Top-P**'
+      top_k: '**Top-K**'
+      web_search: '**Web Search**'
+      search_enabled: Enabled
+      search_disabled: Disabled
+    grounding_metadata:
+      spoiler_header: Sources Used by the Model ℹ️
+      queries_header: '**Search Queries:**'
+      sources_header: '**Sources:**'
+    frontmatter_template_file: frontmatter_template_en.txt
+  ru:
+    user_header: '## Запрос пользователя 👤'
+    model_header: '## Ответ модели 🤖'
+    thought_block_template: '> [!bug]- Размышления модели 🧠
+
+      > {thought_text}'
+    system_instruction_header: Системная инструкция ⚙️
+    system_instruction_template: '> [!note]- {header}
+
+      > {text}'
+    metadata_table:
+      header_parameter: Настройка
+      header_value: Значение
+      model: '**Модель**'
+      temperature: '**Температура**'
+      top_p: '**Top-P**'
+      top_k: '**Top-K**'
+      web_search: '**Поиск в Google**'
+      search_enabled: Включен
+      search_disabled: Отключен
+    grounding_metadata:
+      spoiler_header: Источники, использованные моделью ℹ️
+      queries_header: '**Поисковые запросы:**'
+      sources_header: '**Источники:**'
+    frontmatter_template_file: frontmatter_template_ru.txt
