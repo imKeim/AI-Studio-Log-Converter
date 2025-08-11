@@ -1,13 +1,13 @@
 @echo off
 echo Cleaning up generated files and directories...
 
-REM Удаление папки dist
+REM Delete the dist directory
 if exist "dist" (
     echo Deleting 'dist' directory...
     rmdir /s /q dist
 )
 
-REM Удаление логов и конфигурационных файлов
+REM Delete log and config files
 if exist "config.yaml" (
     echo Deleting 'config.yaml'...
     del "config.yaml"

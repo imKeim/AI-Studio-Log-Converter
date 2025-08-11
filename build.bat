@@ -1,13 +1,13 @@
 @echo off
 echo Building the application with PyInstaller...
 
-REM Установка зависимостей
+REM Install dependencies, including PyInstaller
 pip install -r requirements.txt
 
-REM Сборка .exe файла
-pyinstaller --onefile --windowed --name "AI-Studio-Log-Converter" "ai-studio-log-converter.pyw"
+REM Build the .exe file using python -m
+python -m PyInstaller --onefile --windowed --name "AI-Studio-Log-Converter" "ai-studio-log-converter.pyw"
 
-REM Проверка, была ли сборка успешной
+REM Check if the build was successful
 if %errorlevel% neq 0 (
     echo.
     echo PyInstaller failed to build the application.
@@ -18,7 +18,7 @@ if %errorlevel% neq 0 (
 echo.
 echo Build successful. Cleaning up temporary files...
 
-REM Удаление временных файлов и папок
+REM Remove temporary files and folders
 rmdir /s /q build
 del "*.spec"
 
