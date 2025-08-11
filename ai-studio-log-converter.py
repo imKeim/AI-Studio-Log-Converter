@@ -8,6 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 import yaml
+from colorama import Fore, Style, init
+
+# --- Colorama Initialization ---
+init(autoreset=True)
 
 # --- Global Constants & Default Configs ---
 CONFIG_FILE_NAME = "config.yaml"
@@ -118,7 +122,7 @@ mdate: {mdate}
 def load_or_create_config() -> dict:
     config_path = Path(CONFIG_FILE_NAME)
     if not config_path.exists():
-        print(f"Info: Configuration file '{CONFIG_FILE_NAME}' not found. Creating a new one with comments.")
+        print(Fore.YELLOW + f"Info: Configuration file '{CONFIG_FILE_NAME}' not found. Creating a new one with comments.")
         try:
             config_content = DEFAULT_CONFIG_TEMPLATE.format(
                 language=DEFAULT_CONFIG['language'],
@@ -133,32 +137,38 @@ def load_or_create_config() -> dict:
                 yaml.dump({'localization': DEFAULT_CONFIG['localization']}, f, allow_unicode=True, sort_keys=False, indent=2)
             return DEFAULT_CONFIG
         except IOError as e:
-            print(f"Error: Could not create config file: {e}. Using default settings.")
+            print(Fore.RED + f"Error: Could not create config file: {e}. Using default settings.")
             return DEFAULT_CONFIG
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             user_config = yaml.safe_load(f) or {}
             config = {**DEFAULT_CONFIG, **user_config}
+            
+            # Validate language setting
+            if config.get('language') not in ['en', 'ru']:
+                print(Fore.YELLOW + f"Warning: Invalid language '{config.get('language')}' in '{CONFIG_FILE_NAME}'. Defaulting to 'en'.")
+                config['language'] = 'en'
+                
             return config
     except (yaml.YAMLError, IOError) as e:
-        print(f"Error: Could not read config file '{CONFIG_FILE_NAME}': {e}. Using default settings.")
+        print(Fore.RED + f"Error: Could not read config file '{CONFIG_FILE_NAME}': {e}. Using default settings.")
         return DEFAULT_CONFIG
 
 def load_or_create_template(template_filename: str, lang: str) -> str:
     template_path = Path(template_filename)
     if not template_path.exists():
-        print(f"Info: Template file '{template_filename}' not found. Creating a default one.")
+        print(Fore.YELLOW + f"Info: Template file '{template_filename}' not found. Creating a default one.")
         default_template = DEFAULT_FRONTMATTER_TEMPLATES.get(lang, DEFAULT_FRONTMATTER_TEMPLATES['en'])
         try:
             template_path.write_text(default_template, encoding='utf-8')
             return default_template
         except IOError as e:
-            print(f"Error: Could not create template file: {e}. Using a built-in template.")
+            print(Fore.RED + f"Error: Could not create template file: {e}. Using a built-in template.")
             return default_template
     try:
         return template_path.read_text(encoding='utf-8')
     except IOError as e:
-        print(f"Error: Could not read template file: {e}. Using a built-in template.")
+        print(Fore.RED + f"Error: Could not read template file: {e}. Using a built-in template.")
         return DEFAULT_FRONTMATTER_TEMPLATES.get(lang, DEFAULT_FRONTMATTER_TEMPLATES['en'])
 
 def get_clean_title(base_title: str) -> str:
@@ -360,7 +370,7 @@ def find_json_files(path: Path, recursive: bool):
     return sorted(valid_json_files)
 
 def process_files(files_to_process, output_dir, overwrite, config, lang_templates, frontmatter_template):
-    print(f"\nFound {len(files_to_process)} valid JSON files to process. Output will be saved to '{output_dir}'.")
+    print(Style.BRIGHT + f"\nFound {len(files_to_process)} valid JSON files to process. Output will be saved to '{output_dir}'.")
     success_count, skipped_count, error_count = 0, 0, 0
     
     with tqdm(total=len(files_to_process), desc="Converting", unit="file", ncols=100) as pbar:
@@ -387,43 +397,43 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
                     success_count += 1
                 else:
                     error_count += 1
-                    tqdm.write(f"\n❌ ERROR converting '{json_path.name}': {error_msg}")
+                    tqdm.write(Fore.RED + f"\n❌ ERROR converting '{json_path.name}': {error_msg}")
             pbar.update(1)
 
-    print("\n--- Conversion Complete ---")
-    print(f"✅ Successfully converted: {success_count}")
-    if skipped_count > 0: print(f"⏭️ Skipped (already exist): {skipped_count}")
-    if error_count > 0: print(f"❌ Errors: {error_count}")
+    print(Style.BRIGHT + "\n--- Conversion Complete ---")
+    print(Fore.GREEN + f"✅ Successfully converted: {success_count}")
+    if skipped_count > 0: print(Fore.YELLOW + f"⏭️ Skipped (already exist): {skipped_count}")
+    if error_count > 0: print(Fore.RED + f"❌ Errors: {error_count}")
 
 # --- ОБНОВЛЕННЫЙ ИНТЕРАКТИВНЫЙ РЕЖИМ ---
 def run_interactive_mode(config, lang_templates, frontmatter_template):
     """Runs a flexible interactive mode with smart defaults."""
-    print("--- AI Studio Log Converter (Interactive Mode) ---")
+    print(Style.BRIGHT + "--- AI Studio Log Converter (Interactive Mode) ---")
     
     # 1. Get source path
     while True:
-        src_path_str = input(f"➡️ Enter source path (default: '{DEFAULT_INPUT_DIR}'): ").strip() or DEFAULT_INPUT_DIR
+        src_path_str = input(Fore.CYAN + f"➡️ Enter source path (default: '{DEFAULT_INPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_INPUT_DIR
         src_path = Path(src_path_str)
         if src_path.exists():
             break
-        print(f"❌ Error: The path '{src_path}' does not exist. Please try again.")
+        print(Fore.RED + f"❌ Error: The path '{src_path}' does not exist. Please try again.")
 
     # 2. Get output path
-    out_path_str = input(f"➡️ Enter output path (default: '{DEFAULT_OUTPUT_DIR}'): ").strip() or DEFAULT_OUTPUT_DIR
+    out_path_str = input(Fore.CYAN + f"➡️ Enter output path (default: '{DEFAULT_OUTPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_OUTPUT_DIR
     output_dir = Path(out_path_str)
 
     # 3. Get recursive option
-    recursive_str = input("➡️ Search recursively in subfolders? (y/N, default: N): ").strip().lower()
+    recursive_str = input(Fore.CYAN + "➡️ Search recursively in subfolders? (y/N, default: N): " + Style.RESET_ALL).strip().lower()
     recursive = recursive_str == 'y'
 
     # 4. Get overwrite option
-    overwrite_str = input("➡️ Overwrite existing files? (y/N, default: N): ").strip().lower()
+    overwrite_str = input(Fore.CYAN + "➡️ Overwrite existing files? (y/N, default: N): " + Style.RESET_ALL).strip().lower()
     overwrite = overwrite_str == 'y'
 
     files = find_json_files(src_path, recursive)
     if not files:
-        print(f"\n⚠️ No valid JSON files found in '{src_path}'.")
-        print("Please place your files there and run the program again.")
+        print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{src_path}'.")
+        print(Fore.YELLOW + "Please place your files there and run the program again.")
         return
 
     process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)

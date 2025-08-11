@@ -12,3 +12,6 @@ __pycache__/
 # IDE / Editor specific
 .vscode/
 .idea/
+
+# Private files
+todo.md
