@@ -25,9 +25,9 @@ pip install pyyaml tqdm
 
 ### Standard Usage (Recommended)
 
-1.  Run `converter.exe` once. It will automatically create two folders: `input` and `output`.
+1.  Run `ai-studio-log-converter.exe` once. It will automatically create two folders: `input` and `output`.
 2.  Place all your `.json` log files into the `input` folder. You can create subdirectories inside `input` if you wish.
-3.  Run `converter.exe` again.
+3.  Run `ai-studio-log-converter.exe` again.
 4.  The program will process all files from the `input` folder and save the converted `.md` files in the `output` folder.
 
 The interactive mode will simply ask you about recursive search and overwriting files, as the input/output folders are now set by default.
@@ -36,9 +36,9 @@ The interactive mode will simply ask you about recursive search and overwriting 
 
 You can override the default folders using command-line arguments.
 
-- `converter.exe`: Processes `./input` -> `./output`.
-- `converter.exe C:\my_logs`: Processes `C:\my_logs` -> `./output`.
-- `converter.exe C:\my_logs -o D:\final_notes`: Processes `C:\my_logs` -> `D:\final_notes`.
+- `ai-studio-log-converter.exe`: Processes `./input` -> `./output`.
+- `ai-studio-log-converter.exe C:\my_logs`: Processes `C:\my_logs` -> `./output`.
+- `ai-studio-log-converter.exe C:\my_logs -o D:\final_notes`: Processes `C:\my_logs` -> `D:\final_notes`.
 
 ### Command-Line Mode (Advanced)
 

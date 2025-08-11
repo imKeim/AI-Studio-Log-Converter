@@ -18,6 +18,7 @@ ASSETS_DIR_NAME = "assets"
 DEFAULT_CONFIG = {
     'language': 'en',
     'enable_frontmatter': True,
+    'enable_metadata_table': True, # <-- НОВАЯ ОПЦИЯ
     'filename_template': "{date} - {basename}.md",
     'date_format': "%Y-%m-%d",
     'localization': {
@@ -27,6 +28,18 @@ DEFAULT_CONFIG = {
             'thought_block_template': """> [!bug]- Model Thoughts 🧠\n> {thought_text}""",
             'system_instruction_header': "System Instruction ⚙️",
             'system_instruction_template': """> [!note]- {header}\n> {text}""",
+            # <-- НОВЫЙ БЛОК ЛОКАЛИЗАЦИИ -->
+            'metadata_table': {
+                'header_parameter': "Parameter",
+                'header_value': "Value",
+                'model': "**Model**",
+                'temperature': "**Temperature**",
+                'top_p': "**Top-P**",
+                'top_k': "**Top-K**",
+                'web_search': "**Web Search**",
+                'search_enabled': "Enabled",
+                'search_disabled': "Disabled"
+            },
             'frontmatter_template_file': "frontmatter_template_en.txt"
         },
         'ru': {
@@ -35,6 +48,18 @@ DEFAULT_CONFIG = {
             'thought_block_template': """> [!bug]- Размышления модели 🧠\n> {thought_text}""",
             'system_instruction_header': "Системная инструкция ⚙️",
             'system_instruction_template': """> [!note]- {header}\n> {text}""",
+            # <-- НОВЫЙ БЛОК ЛОКАЛИЗАЦИИ -->
+            'metadata_table': {
+                'header_parameter': "Настройка",
+                'header_value': "Значение",
+                'model': "**Модель**",
+                'temperature': "**Температура**",
+                'top_p': "**Top-P**",
+                'top_k': "**Top-K**",
+                'web_search': "**Поиск в Google**",
+                'search_enabled': "Включен",
+                'search_disabled': "Отключен"
+            },
             'frontmatter_template_file': "frontmatter_template_ru.txt"
         }
     }
@@ -80,7 +105,11 @@ def load_or_create_config() -> dict:
             return DEFAULT_CONFIG
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            # Объединяем конфиг по умолчанию с пользовательским, чтобы новые опции работали
+            user_config = yaml.safe_load(f) or {}
+            config = DEFAULT_CONFIG.copy()
+            config.update(user_config)
+            return config
     except (yaml.YAMLError, IOError) as e:
         print(f"Error: Could not read config file '{CONFIG_FILE_NAME}': {e}. Using default settings.")
         return DEFAULT_CONFIG
@@ -146,6 +175,42 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
 
     full_md_content += f"# {final_title}\n\n"
 
+    # --- НОВАЯ ЛОГИКА: Создание таблицы метаданных ---
+    if config.get('enable_metadata_table', False):
+        run_settings = log_data.get('runSettings', {})
+        if run_settings:
+            loc = lang_templates.get('metadata_table', {})
+            header_param = loc.get('header_parameter', 'Parameter')
+            header_value = loc.get('header_value', 'Value')
+            
+            table_rows = []
+            
+            # Модель
+            model_name = run_settings.get('model', 'N/A')
+            clean_model_name = model_name.split('/')[-1]
+            table_rows.append(f"| {loc.get('model', '**Model**')} | `{clean_model_name}` |")
+            
+            # Температура
+            if 'temperature' in run_settings:
+                table_rows.append(f"| {loc.get('temperature', '**Temperature**')} | `{run_settings['temperature']}` |")
+            
+            # Top-P
+            if 'topP' in run_settings:
+                table_rows.append(f"| {loc.get('top_p', '**Top-P**')} | `{run_settings['topP']}` |")
+
+            # Top-K
+            if 'topK' in run_settings:
+                table_rows.append(f"| {loc.get('top_k', '**Top-K**')} | `{run_settings['topK']}` |")
+
+            # Поиск в Google
+            search_enabled = 'googleSearch' in run_settings or run_settings.get('enableSearchAsATool', False)
+            search_text = loc.get('search_enabled', 'Enabled') if search_enabled else loc.get('search_disabled', 'Disabled')
+            table_rows.append(f"| {loc.get('web_search', '**Web Search**')} | {search_text} |")
+            
+            table_header = f"| {header_param} | {header_value} |\n| :--- | :--- |"
+            full_table = table_header + "\n" + "\n".join(table_rows)
+            full_md_content += full_table + "\n\n***\n\n"
+
     conversation_turns = []
     
     system_instruction = (log_data.get('systemInstruction', {}).get('text') or '').strip()
@@ -155,7 +220,6 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
     if not system_instruction and not chunks:
         return False, "JSON file contains no 'systemInstruction' and no valid dialog structure."
 
-    # --- НОВАЯ, УПРОЩЕННАЯ И НАДЕЖНАЯ ЛОГИКА ГРУППИРОВКИ И ОБРАБОТКИ ---
     i = 0
     while i < len(chunks):
         current_role = chunks[i].get('role')
@@ -163,19 +227,16 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
             i += 1
             continue
 
-        # 1. Собираем все последовательные чанки с одной ролью
         turn_chunks = []
         j = i
         while j < len(chunks) and chunks[j].get('role') == current_role:
             turn_chunks.append(chunks[j])
             j += 1
         
-        # 2. Обрабатываем собранную группу
         turn_content = []
         pending_thoughts = []
         header = lang_templates.get(f"{current_role}_header", f"## {current_role.capitalize()}")
 
-        # Добавляем системную инструкцию к первому ходу пользователя
         if i == 0 and current_role == 'user' and system_instruction:
             spoiler_header = lang_templates.get('system_instruction_header', 'System Instruction ⚙️')
             spoiler_template = lang_templates.get('system_instruction_template', '> [!note]- {header}\n> {text}')
@@ -184,7 +245,6 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
             turn_content.append(spoiler_block)
 
         for chunk in turn_chunks:
-            # Обработка мыслей модели
             if current_role == 'model' and chunk.get('isThought'):
                 thought_text = (chunk.get('text') or '').strip()
                 if thought_text:
@@ -192,46 +252,49 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
                     pending_thoughts.append(thought_block)
                 continue
 
-            # Обработка контента (текст, картинки)
-            # Приоритет отдается полному тексту, если он есть
             if 'text' in chunk:
                 turn_content.append(chunk['text'].strip())
             
-            # Обработка картинок
             if 'driveImage' in chunk:
                 drive_id = chunk['driveImage'].get('id')
                 if drive_id:
                     placeholder = f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})"
                     turn_content.append(placeholder)
             
+            if 'youtubeVideo' in chunk:
+                video_id = chunk['youtubeVideo'].get('id')
+                if video_id:
+                    placeholder = f"[YouTube Video (ID: {video_id})](https://www.youtube.com/watch?v={video_id})"
+                    turn_content.append(placeholder)
+
             if 'inlineData' in chunk:
                 image_link = save_image_from_base64(chunk['inlineData']['data'], chunk['inlineData']['mimeType'], md_path)
                 turn_content.append(image_link)
 
-            # Обработка массива 'parts' как запасной вариант
             for part in chunk.get('parts', []):
+                part_content = []
                 if 'text' in part:
-                    # Проверяем, не дублируем ли мы уже добавленный текст
-                    if not any(part['text'] in content_part for content_part in turn_content):
-                        turn_content.append(part['text'].strip())
+                    part_content.append(part['text'].strip())
                 elif 'inlineData' in part:
                     image_link = save_image_from_base64(part['inlineData']['data'], part['inlineData']['mimeType'], md_path)
-                    turn_content.append(image_link)
+                    part_content.append(image_link)
                 elif 'driveImage' in part:
                     drive_id = part['driveImage'].get('id')
                     if drive_id:
                         placeholder = f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})"
-                        turn_content.append(placeholder)
+                        part_content.append(placeholder)
+                
+                full_part_text = "".join(part_content)
+                if not any(full_part_text in content_part for content_part in turn_content):
+                    turn_content.extend(part_content)
 
-        # Вставляем мысли в начало ответа модели
         if current_role == 'model' and pending_thoughts:
             turn_content = pending_thoughts + turn_content
 
-        # 3. Добавляем собранный ход в итоговый список
         if turn_content:
             conversation_turns.append(f"{header}\n\n" + "\n\n".join(filter(None, turn_content)))
         
-        i = j # Переходим к следующей группе
+        i = j
 
     full_md_content += "\n***\n\n".join(conversation_turns)
 
