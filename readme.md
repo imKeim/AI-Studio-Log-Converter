@@ -60,12 +60,19 @@ Now, you can double-click the `start_watch_hidden.vbs` file to launch the conver
     ```
 3.  Place your JSON log files into the `input` folder.
 
-4.  Run the script:
-    *   For GUI mode:
+4.  Run the script. There are three main modes:
+
+    *   **GUI Mode (Default):** The easiest way to use the converter. Simply run the script without any arguments.
         ```bash
         python ai-studio-log-converter.pyw
         ```
-    *   Using command-line arguments:
+
+    *   **Interactive CLI Mode:** If you prefer the command line, use the `-c` or `--cli` flag to force the interactive console interface.
+        ```bash
+        python ai-studio-log-converter.pyw -c
+        ```
+
+    *   **Batch (Argument-based) Mode:** For automation and scripting, provide a source path and other options directly.
         ```bash
         # Process a specific folder and save results to another folder
         python ai-studio-log-converter.pyw "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite

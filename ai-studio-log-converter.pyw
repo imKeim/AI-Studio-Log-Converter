@@ -570,16 +570,30 @@ class StdoutRedirector:
         self.text_space = text_widget
         # Regex to strip ANSI escape codes for clean logging in the GUI
         self.ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        self.line_buffer = ""
 
     def write(self, string):
+        # Clean and buffer the incoming string
         cleaned_string = self.ansi_escape.sub('', string)
-        self.text_space.configure(state='normal')
-        self.text_space.insert('end', cleaned_string)
-        self.text_space.see('end')
-        self.text_space.configure(state='disabled')
+        self.line_buffer += cleaned_string
+        
+        # Process complete lines from the buffer
+        while '\n' in self.line_buffer:
+            line, self.line_buffer = self.line_buffer.split('\n', 1)
+            self.text_space.configure(state='normal')
+            # Insert the line with the 'indent' tag
+            self.text_space.insert('end', line + '\n', "indent")
+            self.text_space.see('end')
+            self.text_space.configure(state='disabled')
 
     def flush(self):
-        pass
+        # Flush any remaining content in the buffer
+        if self.line_buffer:
+            self.text_space.configure(state='normal')
+            self.text_space.insert('end', self.line_buffer + '\n', "indent")
+            self.text_space.see('end')
+            self.text_space.configure(state='disabled')
+            self.line_buffer = ""
 
 def run_gui_mode(config, lang_templates, frontmatter_template):
     ctk.set_appearance_mode("System")
@@ -587,7 +601,8 @@ def run_gui_mode(config, lang_templates, frontmatter_template):
 
     app = ctk.CTk()
     app.title("AI Studio Log Converter")
-    app.geometry("700x550")
+    app.geometry("800x600")
+    app.minsize(800, 600)
 
     # --- Functions for GUI ---
     def select_input_path():
@@ -696,8 +711,9 @@ def run_gui_mode(config, lang_templates, frontmatter_template):
     start_button.grid(row=2, column=0, padx=20, pady=20, sticky="ew")
 
     # --- Log Textbox ---
-    log_textbox = ctk.CTkTextbox(app, height=150, state='disabled', font=ctk.CTkFont(family="Courier New", size=12))
+    log_textbox = ctk.CTkTextbox(app, height=150, state='disabled', font=ctk.CTkFont(family="Courier New", size=12), wrap="word")
     log_textbox.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="nsew")
+    log_textbox.tag_config("indent", lmargin1=10) # Add left margin to each line
     app.grid_rowconfigure(3, weight=1)
 
     # Redirect stdout
@@ -754,32 +770,40 @@ def main():
     parser.add_argument("-r", "--recursive", action="store_true", help="Search recursively.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--watch", action="store_true", help="Run in watch mode to automatically convert new files.")
+    parser.add_argument("-c", "--cli", action="store_true", help="Force run in command-line interactive mode instead of GUI.")
     
     args = parser.parse_args()
 
-    input_path = args.input_path if args.input_path is not None else input_dir_default
-
+    # Logic to decide which mode to run
     if args.watch:
+        # Watch mode takes precedence
+        input_path = args.input_path if args.input_path is not None else input_dir_default
         if not input_path.is_dir():
             print(Fore.RED + "Error: In --watch mode, the input path must be a directory.")
             sys.exit(1)
         run_watch_mode(input_path, args.output, args.overwrite, config, lang_templates, frontmatter_template)
+    
     elif args.input_path is not None:
-        files = find_json_files(input_path, args.recursive)
+        # Batch processing with a given path
+        files = find_json_files(args.input_path, args.recursive)
         if not files:
-            print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{input_path}'.")
-            if input_path == input_dir_default:
+            print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{args.input_path}'.")
+            if args.input_path == input_dir_default:
                  print(Fore.YELLOW + "Please place your files there and run the program again.")
             return
-        
         process_files(files, args.output, args.overwrite, config, lang_templates, frontmatter_template)
+
+    elif args.cli:
+        # Forced interactive CLI mode
+        run_interactive_mode(config, lang_templates, frontmatter_template)
+
     else:
-        # Если нет аргументов, запускаем GUI
+        # Default to GUI mode if no other flags are provided
         try:
             run_gui_mode(config, lang_templates, frontmatter_template)
         except Exception:
             log_crash(sys.exc_info())
-            sys.exit(1) # Выходим с кодом ошибки
+            sys.exit(1) # Exit with an error code
     
     # В режиме GUI этот код не будет достигнут, так как окно имеет свой цикл.
     # Для .exe, запущенного из консоли, это позволит окну не закрываться сразу.
