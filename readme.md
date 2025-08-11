@@ -4,14 +4,14 @@ A powerful and flexible tool to convert Google AI Studio chat logs (JSON format)
 
 ## Features
 
+- **✨ Modern GUI:** A clean, user-friendly graphical interface built with CustomTkinter.
 - **🤖 Smart Parsing:** Intelligently handles multiple JSON formats from different AI Studio versions.
 - **🖼️ Image Handling:** Automatically saves `inlineData` (base64) images to an `assets` folder and creates local links.
 - **🔗 Link Placeholders:** Creates clickable links for `driveImage` and `youtubeVideo` references, preserving context.
 - **📊 Metadata Table:** Generates a convenient Markdown table at the top of each file with key session parameters (Model, Temperature, etc.).
 - **⚙️ Full Configuration:** All settings, including templates and localization, are controlled via an easy-to-edit `config.yaml` file.
 - **🌐 Localization (EN/RU):** All generated headers and templates can be switched between English and Russian.
-- **✨ Flexible Interactive & CLI Modes:** Run a user-friendly wizard by double-clicking the `.exe` or use command-line arguments for automation.
-- **👀 Watch Mode:** Automatically convert files as they are added or modified in the input folder.
+- **👀 Watch Mode:** Automatically convert files as they are added or modified in the input folder (CLI only).
 - **📁 Smart Folder Structure:** Works with a clean `input`/`output` folder structure by default, which is created automatically.
 
 ## Usage for End-Users
@@ -20,22 +20,7 @@ This is the simplest way to use the converter without needing Python installed.
 
 1.  Download the latest `.zip` archive from the [Releases](https://github.com/imKeim/AI-Studio-Log-Converter/releases) page.
 2.  Extract the archive. You will get a folder with `ai-studio-log-converter.exe`, `config.yaml`, and other template files.
-3.  Double-click `ai-studio-log-converter.exe` to run the interactive wizard.
-
-The program will then ask you a series of questions:
-
--   **Enter source path (default: 'input'):**
-    -   You can simply press **Enter** to use the default `input` folder.
-    -   Or, you can paste the full path to any other folder on your computer that contains your JSON logs.
--   **Enter output path (default: 'output'):**
-    -   Press **Enter** to use the default `output` folder.
-    -   Or, specify a different folder where you want to save the converted `.md` files.
--   **Search recursively? (y/N, default: N):**
-    -   Type `y` if you want to process files in subfolders as well.
--   **Overwrite existing files? (y/N, default: N):**
-    -   Type `y` if you want the program to overwrite `.md` files that already exist.
-
-Your converted `.md` files and any extracted images will appear in the specified output folder.
+3.  Double-click `ai-studio-log-converter.exe` to run the graphical interface.
 
 ## Running in the Background (Hidden Mode)
 
@@ -76,17 +61,17 @@ Now, you can double-click the `start_watch_hidden.vbs` file to launch the conver
 3.  Place your JSON log files into the `input` folder.
 
 4.  Run the script:
-    *   For interactive mode:
+    *   For GUI mode:
         ```bash
-        python ai-studio-log-converter.py
+        python ai-studio-log-converter.pyw
         ```
     *   Using command-line arguments:
         ```bash
         # Process a specific folder and save results to another folder
-        python ai-studio-log-converter.py "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite
+        python ai-studio-log-converter.pyw "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite
 
         # Run in watch mode to automatically convert new/modified files in the 'input' folder
-        python ai-studio-log-converter.py --watch
+        python ai-studio-log-converter.pyw --watch
         ```
 
 ## How to Build the `.exe` File
@@ -102,11 +87,12 @@ You can compile the script into a single, portable `.exe` file using PyInstaller
 
 3.  **Run the build command:**
     ```bash
-    python -m PyInstaller --onefile --hidden-import watchdog ai-studio-log-converter.py
+    python -m PyInstaller --onefile --noconsole --hidden-import watchdog ai-studio-log-converter.pyw
     ```
     *   `--onefile`: This flag packages everything into a single executable file.
+    *   `--noconsole`: This flag prevents the console window from appearing when the `.exe` is run.
     *   `--hidden-import watchdog`: **Crucial!** Explicitly tells PyInstaller to include the `watchdog` library, which it might miss otherwise during static analysis.
-    *   `ai-studio-log-converter.py`: Make sure this matches the name of your Python script.
+    *   `ai-studio-log-converter.pyw`: Make sure this matches the name of your Python script (note the `.pyw` extension for windowed applications).
 
 4.  **Find the result:** The final `ai-studio-log-converter.exe` file will be located in the `dist` folder.
 
@@ -174,4 +160,3 @@ status: archived
 cdate: {cdate}
 mdate: {mdate}
 ---
-```

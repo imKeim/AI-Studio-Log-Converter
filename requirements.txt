@@ -2,3 +2,4 @@ pyyaml
 tqdm
 colorama
 watchdog
+customtkinter

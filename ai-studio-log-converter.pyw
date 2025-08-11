@@ -4,6 +4,7 @@ import argparse
 import sys
 import re
 import base64
+import traceback
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +14,8 @@ from colorama import Fore, Style, init
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
 
 # --- Colorama Initialization ---
 init(autoreset=True)
@@ -414,7 +417,7 @@ def find_json_files(path: Path, recursive: bool):
     valid_json_files = []
     ignore_extensions = ['.py', '.exe', '.yaml', '.txt', '.md', '.spec', '.zip']
     print(f"Scanning {len(files_to_check)} files to find valid JSONs...")
-    for file_path in tqdm(files_to_check, desc="Scanning files", unit="file"):
+    for file_path in tqdm(files_to_check, desc="Scanning files", unit="file", file=sys.stdout):
         if file_path.suffix.lower() in ignore_extensions:
             continue
         try:
@@ -432,7 +435,7 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
     print(Style.BRIGHT + f"\nFound {len(files_to_process)} valid JSON files to process. Output will be saved to '{output_dir}'.")
     success_count, skipped_count, error_count = 0, 0, 0
     
-    with tqdm(total=len(files_to_process), desc="Converting", unit="file", ncols=100) as pbar:
+    with tqdm(total=len(files_to_process), desc="Converting", unit="file", ncols=100, file=sys.stdout) as pbar:
         for json_path in files_to_process:
             try:
                 mtime = datetime.fromtimestamp(json_path.stat().st_mtime)
@@ -561,6 +564,173 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
 
     process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
 
+class StdoutRedirector:
+    """A class to redirect stdout to a tkinter Text widget."""
+    def __init__(self, text_widget):
+        self.text_space = text_widget
+        # Regex to strip ANSI escape codes for clean logging in the GUI
+        self.ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    def write(self, string):
+        cleaned_string = self.ansi_escape.sub('', string)
+        self.text_space.configure(state='normal')
+        self.text_space.insert('end', cleaned_string)
+        self.text_space.see('end')
+        self.text_space.configure(state='disabled')
+
+    def flush(self):
+        pass
+
+def run_gui_mode(config, lang_templates, frontmatter_template):
+    ctk.set_appearance_mode("System")
+    ctk.set_default_color_theme("blue")
+
+    app = ctk.CTk()
+    app.title("AI Studio Log Converter")
+    app.geometry("700x550")
+
+    # --- Functions for GUI ---
+    def select_input_path():
+        path = filedialog.askdirectory(initialdir=DEFAULT_INPUT_DIR)
+        if path:
+            input_path_entry.delete(0, 'end')
+            input_path_entry.insert(0, path)
+
+    def select_output_path():
+        path = filedialog.askdirectory(initialdir=DEFAULT_OUTPUT_DIR)
+        if path:
+            output_path_entry.delete(0, 'end')
+            output_path_entry.insert(0, path)
+
+    def start_conversion():
+        start_button.configure(state="disabled")
+        log_textbox.configure(state='normal')
+        log_textbox.delete("1.0", "end")
+        log_textbox.configure(state='disabled')
+
+        input_path_str = input_path_entry.get() or DEFAULT_INPUT_DIR
+        output_path_str = output_path_entry.get() or DEFAULT_OUTPUT_DIR
+        
+        input_path = Path(input_path_str)
+        output_dir = Path(output_path_str)
+        
+        recursive = recursive_var.get()
+        overwrite = overwrite_var.get()
+        watch_mode = watch_var.get()
+
+        if not input_path.exists():
+            print(Fore.RED + f"❌ Error: The specified path does not exist: '{input_path}'")
+            start_button.configure(state="normal")
+            return
+
+        try:
+            if watch_mode:
+                if not input_path.is_dir():
+                    print(Fore.RED + "Error: In watch mode, the source path must be a directory.")
+                else:
+                    # Watch mode is blocking, so we can't run it directly in the main thread
+                    # For now, we'll just print a message. A real implementation would need threading.
+                    print(Fore.YELLOW + "Watch mode should be run from the command line.")
+                    print(Fore.YELLOW + f"python ai-studio-log-converter.py \"{input_path}\" --watch")
+
+            else:
+                files = find_json_files(input_path, recursive)
+                if not files:
+                    print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{input_path}'.")
+                else:
+                    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+        except Exception as e:
+            print(Fore.RED + f"An unexpected error occurred: {e}")
+        finally:
+            if not watch_mode:
+                print("\n" + Style.BRIGHT + "Done! You can start a new conversion or close the program.")
+            start_button.configure(state="normal")
+
+    # --- GUI Layout ---
+    app.grid_columnconfigure(0, weight=1)
+    
+    title_label = ctk.CTkLabel(app, text="Google AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
+    title_label.grid(row=0, column=0, padx=20, pady=(10, 20), sticky="ew")
+
+    # --- Frame for settings ---
+    settings_frame = ctk.CTkFrame(app)
+    settings_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+    settings_frame.grid_columnconfigure(1, weight=1)
+
+    # Input Path
+    input_path_label = ctk.CTkLabel(settings_frame, text="Source Path:")
+    input_path_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+    input_path_entry = ctk.CTkEntry(settings_frame, placeholder_text=DEFAULT_INPUT_DIR)
+    input_path_entry.insert(0, DEFAULT_INPUT_DIR)
+    input_path_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+    input_browse_button = ctk.CTkButton(settings_frame, text="Browse...", command=select_input_path, width=100)
+    input_browse_button.grid(row=0, column=2, padx=10, pady=10)
+
+    # Output Path
+    output_path_label = ctk.CTkLabel(settings_frame, text="Output Path:")
+    output_path_label.grid(row=1, column=0, padx=10, pady=10, sticky="w")
+    output_path_entry = ctk.CTkEntry(settings_frame, placeholder_text=DEFAULT_OUTPUT_DIR)
+    output_path_entry.insert(0, DEFAULT_OUTPUT_DIR)
+    output_path_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+    output_browse_button = ctk.CTkButton(settings_frame, text="Browse...", command=select_output_path, width=100)
+    output_browse_button.grid(row=1, column=2, padx=10, pady=10)
+
+    # Checkboxes
+    checkbox_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+    checkbox_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="w")
+    
+    recursive_var = ctk.BooleanVar()
+    recursive_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Search Recursively", variable=recursive_var)
+    recursive_checkbox.pack(side="left", padx=5)
+
+    overwrite_var = ctk.BooleanVar()
+    overwrite_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Overwrite Existing", variable=overwrite_var)
+    overwrite_checkbox.pack(side="left", padx=5)
+
+    watch_var = ctk.BooleanVar()
+    watch_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Watch Mode", variable=watch_var)
+    watch_checkbox.pack(side="left", padx=5)
+
+    # --- Start Button ---
+    start_button = ctk.CTkButton(app, text="Start Conversion", command=start_conversion, height=40)
+    start_button.grid(row=2, column=0, padx=20, pady=20, sticky="ew")
+
+    # --- Log Textbox ---
+    log_textbox = ctk.CTkTextbox(app, height=150, state='disabled', font=ctk.CTkFont(family="Courier New", size=12))
+    log_textbox.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="nsew")
+    app.grid_rowconfigure(3, weight=1)
+
+    # Redirect stdout
+    sys.stdout = StdoutRedirector(log_textbox)
+
+    app.mainloop()
+
+def log_crash(exc_info):
+    """Logs crash information to a file and shows a popup."""
+    log_file = "crash_log.txt"
+    error_details = "".join(traceback.format_exception(exc_info[0], exc_info[1], exc_info[2]))
+    
+    try:
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write("A critical error occurred:\n")
+            f.write(error_details)
+        print(f"Critical error. Details saved to {log_file}")
+    except Exception as e:
+        print(f"Failed to write crash log: {e}")
+
+    # Show error in a simple tkinter messagebox as customtkinter might not be available
+    try:
+        # Use a temporary root for the messagebox
+        root = ctk.CTk()
+        root.withdraw() 
+        messagebox.showerror(
+            "Application Crash",
+            f"A critical error occurred!\n\nDetails have been saved to {log_file}"
+        )
+    except Exception as e:
+        print(f"Failed to show crash popup: {e}")
+
+
 def main():
     # Добавляем импорт urlparse в начало файла, если его там еще нет
     # from urllib.parse import urlparse
@@ -604,9 +774,16 @@ def main():
         
         process_files(files, args.output, args.overwrite, config, lang_templates, frontmatter_template)
     else:
-        run_interactive_mode(config, lang_templates, frontmatter_template)
+        # Если нет аргументов, запускаем GUI
+        try:
+            run_gui_mode(config, lang_templates, frontmatter_template)
+        except Exception:
+            log_crash(sys.exc_info())
+            sys.exit(1) # Выходим с кодом ошибки
     
-    if getattr(sys, 'frozen', False) and not args.watch:
+    # В режиме GUI этот код не будет достигнут, так как окно имеет свой цикл.
+    # Для .exe, запущенного из консоли, это позволит окну не закрываться сразу.
+    if getattr(sys, 'frozen', False) and not args.watch and not (len(sys.argv) == 1):
         input("\nPress Enter to exit.")
 
 if __name__ == "__main__":
