@@ -3,4 +3,5 @@ tqdm
 colorama
 watchdog
 customtkinter
+pillow
 pyinstaller

@@ -15,6 +15,7 @@ import customtkinter as ctk
 from tkinter import filedialog
 from pathlib import Path
 import os
+from PIL import Image
 
 # Import functions and constants from other modules.
 from .converter import find_json_files, process_files
@@ -145,14 +146,26 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
 
     # --- GUI Layout ---
     # The layout is defined using a grid system for flexibility.
-    app.grid_columnconfigure(0, weight=1)
-    
-    title_label = ctk.CTkLabel(app, text="Google AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
-    title_label.grid(row=0, column=0, padx=20, pady=(10, 20), sticky="ew")
+    app.grid_columnconfigure(1, weight=1)
+
+    # --- Frame for logo and title ---
+    header_frame = ctk.CTkFrame(app, fg_color="transparent")
+    header_frame.grid(row=0, column=0, columnspan=2, padx=20, pady=(10, 0), sticky="ew")
+    header_frame.grid_columnconfigure(1, weight=1)
+
+    # --- Logo ---
+    logo_path = resource_path("logo.png")
+    if os.path.exists(logo_path):
+        logo_image = ctk.CTkImage(Image.open(logo_path), size=(48, 48))
+        logo_label = ctk.CTkLabel(header_frame, image=logo_image, text="")
+        logo_label.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
+
+    title_label = ctk.CTkLabel(header_frame, text="Google AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
+    title_label.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
     # --- Frame for settings ---
     settings_frame = ctk.CTkFrame(app)
-    settings_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+    settings_frame.grid(row=1, column=0, columnspan=2, padx=20, pady=10, sticky="ew")
     settings_frame.grid_columnconfigure(1, weight=1)
 
     # Input Path
@@ -192,11 +205,11 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
 
     # --- Start Button ---
     start_button = ctk.CTkButton(app, text="Start Conversion", command=start_conversion, height=40)
-    start_button.grid(row=2, column=0, padx=20, pady=20, sticky="ew")
+    start_button.grid(row=2, column=0, columnspan=2, padx=20, pady=20, sticky="ew")
 
     # --- Log Textbox ---
     log_textbox = ctk.CTkTextbox(app, height=150, state='disabled', font=ctk.CTkFont(family="Courier New", size=12), wrap="word")
-    log_textbox.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="nsew")
+    log_textbox.grid(row=3, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
     log_textbox.tag_config("indent", lmargin1=10) # Add left margin to each line
     app.grid_rowconfigure(3, weight=1)
 
