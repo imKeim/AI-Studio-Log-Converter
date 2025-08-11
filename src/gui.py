@@ -18,6 +18,7 @@ from tkinter import filedialog
 from pathlib import Path
 import os
 from PIL import Image
+import threading
 
 # Import functions and constants from other modules.
 from .converter import find_json_files, process_files
@@ -30,7 +31,7 @@ class StdoutRedirector:
     This class is essential for displaying real-time console output, such as
     progress messages and error logs, directly within the application's GUI.
     It implements the `write` and `flush` methods, making it compatible with
-    Python's `sys.stdout`.
+    Python's `sys.stdout`. It is designed to be thread-safe.
     """
     def __init__(self, text_widget):
         """Initializes the redirector with the target text widget."""
@@ -42,35 +43,36 @@ class StdoutRedirector:
 
     def write(self, string):
         """
-        Writes a string to the text widget.
+        Writes a string to the text widget in a thread-safe manner.
 
         This method cleans the string of any ANSI codes, buffers the output,
-        and inserts it line by line into the text widget to ensure smooth updates.
+        and schedules the GUI update on the main thread using `app.after`.
         """
         cleaned_string = self.ansi_escape.sub('', string)
         self.line_buffer += cleaned_string
         
-        # Process the buffer line by line.
         while '\n' in self.line_buffer:
             line, self.line_buffer = self.line_buffer.split('\n', 1)
-            self.text_space.configure(state='normal') # Enable writing to the widget
-            self.text_space.insert('end', line + '\n', "indent")
-            self.text_space.see('end') # Scroll to the end to show the latest output
-            self.text_space.configure(state='disabled') # Disable writing to prevent user edits
+            # Schedule the text insertion on the main Tkinter thread.
+            self.text_space.master.after(0, self._insert_text, line + '\n')
 
     def flush(self):
         """
         Ensures any remaining buffered output is written to the widget.
-
-        This method is called automatically by the system at certain times,
-        such as when the program exits, to make sure no output is lost.
+        This is also thread-safe.
         """
         if self.line_buffer:
-            self.text_space.configure(state='normal')
-            self.text_space.insert('end', self.line_buffer + '\n', "indent")
-            self.text_space.see('end')
-            self.text_space.configure(state='disabled')
+            # Schedule the final buffer flush on the main Tkinter thread.
+            self.text_space.master.after(0, self._insert_text, self.line_buffer + '\n')
             self.line_buffer = ""
+
+    def _insert_text(self, text_to_insert):
+        """Helper method to perform the actual GUI update on the main thread."""
+        self.text_space.configure(state='normal') # Enable writing to the widget
+        self.text_space.insert('end', text_to_insert, "indent")
+        self.text_space.see('end') # Scroll to the end to show the latest output
+        self.text_space.configure(state='disabled') # Disable writing to prevent user edits
+
 
 def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     """
@@ -78,33 +80,24 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
 
     This function sets up the main window, defines the layout and widgets,
     and connects user actions (like button clicks) to the underlying
-    conversion logic.
-
-    Args:
-        config (dict): The main configuration dictionary.
-        lang_templates (dict): The dictionary for localized strings.
-        frontmatter_template (str): The template for YAML frontmatter.
-        resource_path (function): A helper function (from the main .pyw file)
-                                  to get the absolute path to bundled resources.
+    conversion logic, which is run in a separate thread to prevent freezing.
     """
     # --- Window Setup ---
     ctk.set_appearance_mode("Dark")
     
-    # Load the custom color theme.
     theme_path = resource_path("custom_theme.json")
     ctk.set_default_color_theme(theme_path)
 
     app = ctk.CTk()
     app.title("AI Studio Log Converter")
     
-    # Set the application icon.
     icon_path = resource_path("logo.ico")
     if os.path.exists(icon_path):
         app.iconbitmap(icon_path)
     app.geometry("800x600")
     app.minsize(800, 600)
 
-    # --- GUI Helper Functions (defined inside the main function to have access to app variables) ---
+    # --- GUI Helper Functions ---
 
     def select_input_path():
         """Callback for the 'Browse...' button for the source path."""
@@ -120,20 +113,46 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
             output_path_entry.delete(0, 'end')
             output_path_entry.insert(0, path)
 
+    def conversion_worker(input_path, output_dir, recursive, overwrite, watch_mode):
+        """
+        This function contains the long-running logic and is executed in a background thread.
+        """
+        try:
+            if not input_path.exists():
+                print(f"❌ Error: The specified path does not exist: '{input_path}'")
+                return
+
+            if watch_mode:
+                if not input_path.is_dir():
+                    print("Error: In watch mode, the source path must be a directory.")
+                else:
+                    print("Watch mode is best run from the command line.")
+                    print(f"python ai-studio-log-converter.pyw \"{input_path}\" --watch")
+            else:
+                # This is the long-running part: finding and processing files.
+                files = find_json_files(input_path, recursive)
+                if not files:
+                    print(f"\n⚠️ No valid JSON files found in '{input_path}'.")
+                else:
+                    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+        finally:
+            # When the work is done, re-enable the button on the main thread.
+            if not watch_mode:
+                print("\nDone! You can start a new conversion or close the program.")
+            app.after(0, lambda: start_button.configure(state="normal"))
+
     def start_conversion():
         """
         The main callback for the 'Start Conversion' button.
-
-        This function gathers all settings from the GUI widgets, validates them,
-        and then calls the appropriate processing functions from the converter module.
+        This function now only gathers settings and starts the background worker thread.
         """
-        # Disable the button to prevent multiple clicks and clear the log.
         start_button.configure(state="disabled")
         log_textbox.configure(state='normal')
         log_textbox.delete("1.0", "end")
         log_textbox.configure(state='disabled')
 
-        # Get all settings from the GUI elements.
         input_path_str = input_path_entry.get() or DEFAULT_INPUT_DIR
         output_path_str = output_path_entry.get() or DEFAULT_OUTPUT_DIR
         
@@ -144,56 +163,28 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
         overwrite = overwrite_var.get()
         watch_mode = watch_var.get()
 
-        # Basic validation for the input path.
-        if not input_path.exists():
-            print(f"❌ Error: The specified path does not exist: '{input_path}'")
-            start_button.configure(state="normal")
-            return
-
-        try:
-            # Handle watch mode separately.
-            if watch_mode:
-                # A proper GUI implementation of a long-running task like watch mode
-                # would require threading to prevent the UI from freezing.
-                # As a simpler solution, we guide the user to use the CLI for this feature.
-                if not input_path.is_dir():
-                    print("Error: In watch mode, the source path must be a directory.")
-                else:
-                    print("Watch mode is best run from the command line.")
-                    print(f"python ai-studio-log-converter.pyw \"{input_path}\" --watch")
-            else:
-                # For a standard one-off conversion:
-                files = find_json_files(input_path, recursive)
-                if not files:
-                    print(f"\n⚠️ No valid JSON files found in '{input_path}'.")
-                else:
-                    # Trigger the main file processing logic.
-                    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-        finally:
-            # Re-enable the start button after the process is complete or an error occurs.
-            if not watch_mode:
-                print("\nDone! You can start a new conversion or close the program.")
-            start_button.configure(state="normal")
+        # Create and start the background thread to do the heavy lifting.
+        worker_thread = threading.Thread(
+            target=conversion_worker,
+            args=(input_path, output_dir, recursive, overwrite, watch_mode)
+        )
+        worker_thread.daemon = True  # Allows the app to exit even if the thread is running.
+        worker_thread.start()
 
     # --- GUI Layout ---
-    # The main layout is managed by a grid system, which allows for flexible resizing.
-    app.grid_columnconfigure(1, weight=1) # Allow the second column to expand
+    app.grid_columnconfigure(1, weight=1)
 
     # --- Header Frame (for logo and title) ---
     header_frame = ctk.CTkFrame(app, fg_color="transparent")
     header_frame.grid(row=0, column=0, columnspan=2, padx=20, pady=(10, 0), sticky="ew")
     header_frame.grid_columnconfigure(1, weight=1)
 
-    # Application Logo
     logo_path = resource_path("logo.png")
     if os.path.exists(logo_path):
         logo_image = ctk.CTkImage(Image.open(logo_path), size=(48, 48))
         logo_label = ctk.CTkLabel(header_frame, image=logo_image, text="")
         logo_label.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
 
-    # Application Title
     title_label = ctk.CTkLabel(header_frame, text="Google AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
     title_label.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
@@ -202,7 +193,6 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     settings_frame.grid(row=1, column=0, columnspan=2, padx=20, pady=10, sticky="ew")
     settings_frame.grid_columnconfigure(1, weight=1)
 
-    # Input Path Selection
     input_path_label = ctk.CTkLabel(settings_frame, text="Source Path:")
     input_path_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
     input_path_entry = ctk.CTkEntry(settings_frame, placeholder_text=DEFAULT_INPUT_DIR)
@@ -211,7 +201,6 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     input_browse_button = ctk.CTkButton(settings_frame, text="Browse...", command=select_input_path, width=100)
     input_browse_button.grid(row=0, column=2, padx=10, pady=10)
 
-    # Output Path Selection
     output_path_label = ctk.CTkLabel(settings_frame, text="Output Path:")
     output_path_label.grid(row=1, column=0, padx=10, pady=10, sticky="w")
     output_path_entry = ctk.CTkEntry(settings_frame, placeholder_text=DEFAULT_OUTPUT_DIR)
@@ -243,12 +232,10 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     # --- Log Output Textbox ---
     log_textbox = ctk.CTkTextbox(app, height=150, state='disabled', font=ctk.CTkFont(family="Courier New", size=12), wrap="word")
     log_textbox.grid(row=3, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
-    log_textbox.tag_config("indent", lmargin1=10) # Add a left margin for readability.
-    app.grid_rowconfigure(3, weight=1) # Allow the log area to expand vertically.
+    log_textbox.tag_config("indent", lmargin1=10)
+    app.grid_rowconfigure(3, weight=1)
 
     # --- Final Setup ---
-    # Redirect all print statements to our custom redirector to display them in the GUI.
     sys.stdout = StdoutRedirector(log_textbox)
 
-    # Start the CustomTkinter main event loop.
     app.mainloop()
