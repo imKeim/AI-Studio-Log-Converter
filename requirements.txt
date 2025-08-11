@@ -4,4 +4,3 @@ colorama
 watchdog
 customtkinter
 pillow
-pyinstaller

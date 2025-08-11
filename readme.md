@@ -94,10 +94,10 @@ You can compile the script into a single, portable `.exe` file using PyInstaller
 
 3.  **Run the build command:**
     ```bash
-    python -m PyInstaller --onefile --noconsole --hidden-import watchdog ai-studio-log-converter.pyw
+    python -m PyInstaller --onefile --windowed --hidden-import watchdog ai-studio-log-converter.pyw
     ```
     *   `--onefile`: This flag packages everything into a single executable file.
-    *   `--noconsole`: This flag prevents the console window from appearing when the `.exe` is run.
+    *   `--windowed`: This flag prevents the console window from appearing when the `.exe` is run.
     *   `--hidden-import watchdog`: **Crucial!** Explicitly tells PyInstaller to include the `watchdog` library, which it might miss otherwise during static analysis.
     *   `ai-studio-log-converter.pyw`: Make sure this matches the name of your Python script (note the `.pyw` extension for windowed applications).
 

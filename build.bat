@@ -3,6 +3,7 @@ echo Building the application with PyInstaller...
 
 REM Install dependencies, including PyInstaller
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 REM Build the .exe file using python -m
 REM --- Corrected --add-data paths and added the icon ---
