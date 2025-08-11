@@ -9,6 +9,9 @@ from pathlib import Path
 from tqdm import tqdm
 import yaml
 from colorama import Fore, Style, init
+import time
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 # --- Colorama Initialization ---
 init(autoreset=True)
@@ -144,7 +147,6 @@ def load_or_create_config() -> dict:
             user_config = yaml.safe_load(f) or {}
             config = {**DEFAULT_CONFIG, **user_config}
             
-            # Validate language setting
             if config.get('language') not in ['en', 'ru']:
                 print(Fore.YELLOW + f"Warning: Invalid language '{config.get('language')}' in '{CONFIG_FILE_NAME}'. Defaulting to 'en'.")
                 config['language'] = 'en'
@@ -182,7 +184,7 @@ def save_image_from_base64(base64_data: str, mime_type: str, md_path: Path) -> s
     assets_path.mkdir(exist_ok=True)
     
     extension = mime_type.split('/')[-1]
-    timestamp = int(time.time() * 1000)
+    timestamp = int(datetime.now().timestamp() * 1000)
     image_filename = f"{md_path.stem}_img_{timestamp}.{extension}"
     image_path = assets_path / image_filename
     
@@ -370,6 +372,9 @@ def find_json_files(path: Path, recursive: bool):
     return sorted(valid_json_files)
 
 def process_files(files_to_process, output_dir, overwrite, config, lang_templates, frontmatter_template):
+    if not files_to_process:
+        return 0, 0, 0
+        
     print(Style.BRIGHT + f"\nFound {len(files_to_process)} valid JSON files to process. Output will be saved to '{output_dir}'.")
     success_count, skipped_count, error_count = 0, 0, 0
     
@@ -404,13 +409,84 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
     print(Fore.GREEN + f"✅ Successfully converted: {success_count}")
     if skipped_count > 0: print(Fore.YELLOW + f"⏭️ Skipped (already exist): {skipped_count}")
     if error_count > 0: print(Fore.RED + f"❌ Errors: {error_count}")
+    return success_count, skipped_count, error_count
 
-# --- ОБНОВЛЕННЫЙ ИНТЕРАКТИВНЫЙ РЕЖИМ ---
+
+# --- Watch Mode ---
+class LogFileEventHandler(FileSystemEventHandler):
+    def __init__(self, output_dir, overwrite, config, lang_templates, frontmatter_template):
+        self.output_dir = output_dir
+        self.overwrite = overwrite
+        self.config = config
+        self.lang_templates = lang_templates
+        self.frontmatter_template = frontmatter_template
+        self.last_processed = {}
+
+    def on_created(self, event):
+        if not event.is_directory:
+            self._process_file(Path(event.src_path))
+
+    def on_modified(self, event):
+        if not event.is_directory:
+            self._process_file(Path(event.src_path))
+
+    def _is_valid_json(self, file_path):
+        try:
+            p = Path(file_path)
+            # Игнорируем наши собственные файлы конфигурации и шаблоны
+            if p.name == CONFIG_FILE_NAME or "frontmatter_template" in p.name:
+                return False
+            with open(p, 'r', encoding='utf-8') as f:
+                json.load(f)
+            return True
+        except (json.JSONDecodeError, UnicodeDecodeError, PermissionError, IsADirectoryError, IOError):
+            return False
+
+    def _process_file(self, json_path):
+        now = time.time()
+        # Защита от "дребезга": не обрабатываем один и тот же файл чаще, чем раз в 2 секунды
+        if json_path in self.last_processed and (now - self.last_processed.get(json_path, 0)) < 2:
+            return
+        
+        # Задержка, чтобы файл успел полностью записаться на диск
+        time.sleep(0.5) 
+        
+        if self._is_valid_json(json_path):
+            print(Fore.CYAN + f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected valid file '{json_path.name}'. Processing...")
+            process_files([json_path], self.output_dir, self.overwrite, self.config, self.lang_templates, self.frontmatter_template)
+            self.last_processed[json_path] = now
+
+def run_watch_mode(input_dir, output_dir, overwrite, config, lang_templates, frontmatter_template):
+    print(Style.BRIGHT + f"--- Starting Watch Mode ---")
+    
+    print(Style.BRIGHT + "Performing initial scan of the directory...")
+    initial_files = find_json_files(input_dir, recursive=False)
+    if initial_files:
+        process_files(initial_files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+    else:
+        print("No initial files to process.")
+    
+    print(Style.BRIGHT + "\n--- Initial scan complete. Watching for new changes ---")
+    print(f"👀 Watching folder: {Fore.YELLOW}'{input_dir}'")
+    print(f"📄 Saving output to: {Fore.YELLOW}'{output_dir}'")
+    print(f"🔄 Overwrite existing files: {'Yes' if overwrite else 'No'}")
+    print(Fore.CYAN + "\n(Press Ctrl+C to stop watching)")
+
+    event_handler = LogFileEventHandler(output_dir, overwrite, config, lang_templates, frontmatter_template)
+    observer = Observer()
+    observer.schedule(event_handler, str(input_dir), recursive=False)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+        print("\n🛑 Watch mode stopped.")
+    observer.join()
+
 def run_interactive_mode(config, lang_templates, frontmatter_template):
-    """Runs a flexible interactive mode with smart defaults."""
     print(Style.BRIGHT + "--- AI Studio Log Converter (Interactive Mode) ---")
     
-    # 1. Get source path
     while True:
         src_path_str = input(Fore.CYAN + f"➡️ Enter source path (default: '{DEFAULT_INPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_INPUT_DIR
         src_path = Path(src_path_str)
@@ -418,15 +494,12 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
             break
         print(Fore.RED + f"❌ Error: The path '{src_path}' does not exist. Please try again.")
 
-    # 2. Get output path
     out_path_str = input(Fore.CYAN + f"➡️ Enter output path (default: '{DEFAULT_OUTPUT_DIR}'): " + Style.RESET_ALL).strip() or DEFAULT_OUTPUT_DIR
     output_dir = Path(out_path_str)
 
-    # 3. Get recursive option
     recursive_str = input(Fore.CYAN + "➡️ Search recursively in subfolders? (y/N, default: N): " + Style.RESET_ALL).strip().lower()
     recursive = recursive_str == 'y'
 
-    # 4. Get overwrite option
     overwrite_str = input(Fore.CYAN + "➡️ Overwrite existing files? (y/N, default: N): " + Style.RESET_ALL).strip().lower()
     overwrite = overwrite_str == 'y'
 
@@ -451,30 +524,36 @@ def main():
     frontmatter_template = load_or_create_template(frontmatter_template_file, lang)
 
     parser = argparse.ArgumentParser(description="Converts Google AI Studio logs to Markdown.")
-    parser.add_argument("input_path", nargs='?', type=Path, default=input_dir_default,
-                        help=f"Source file or folder (default: '{DEFAULT_INPUT_DIR}').")
+    parser.add_argument("input_path", nargs='?', type=Path, default=None,
+                        help=f"Source file or folder. If omitted, runs in interactive mode.")
     parser.add_argument("-o", "--output", type=Path, default=output_dir_default,
                         help=f"Output directory (default: '{DEFAULT_OUTPUT_DIR}').")
     parser.add_argument("-r", "--recursive", action="store_true", help="Search recursively.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
+    parser.add_argument("--watch", action="store_true", help="Run in watch mode to automatically convert new files.")
     
-    if len(sys.argv) > 1:
-        args = parser.parse_args()
-        input_path = args.input_path
-        output_path = args.output
-        
+    args = parser.parse_args()
+
+    input_path = args.input_path if args.input_path is not None else input_dir_default
+
+    if args.watch:
+        if not input_path.is_dir():
+            print(Fore.RED + "Error: In --watch mode, the input path must be a directory.")
+            sys.exit(1)
+        run_watch_mode(input_path, args.output, args.overwrite, config, lang_templates, frontmatter_template)
+    elif args.input_path is not None:
         files = find_json_files(input_path, args.recursive)
         if not files:
-            print(f"\n⚠️ No valid JSON files found in '{input_path}'.")
+            print(Fore.YELLOW + f"\n⚠️ No valid JSON files found in '{input_path}'.")
             if input_path == input_dir_default:
-                 print("Please place your files there and run the program again.")
+                 print(Fore.YELLOW + "Please place your files there and run the program again.")
             return
         
-        process_files(files, output_path, args.overwrite, config, lang_templates, frontmatter_template)
+        process_files(files, args.output, args.overwrite, config, lang_templates, frontmatter_template)
     else:
         run_interactive_mode(config, lang_templates, frontmatter_template)
     
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, 'frozen', False) and not args.watch:
         input("\nPress Enter to exit.")
 
 if __name__ == "__main__":

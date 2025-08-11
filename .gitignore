@@ -1,17 +1,36 @@
-# PyInstaller
-/dist/
-/build/
-*.spec
+# ------------------------------------
+# Файл сгенерирован для Python-проекта
+# ------------------------------------
 
-# Python
+# Виртуальные окружения
+# Исключаем папку с зависимостями, чтобы не хранить её в репозитории.
+# Она легко воссоздаётся из requirements.txt.
+.venv/
+venv/
+ENV/
+env/
+
+# Кэш и скомпилированные файлы Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# IDE / Editor specific
-.vscode/
-.idea/
+# Артефакты сборки (PyInstaller, setuptools и т.д.)
+/build/
+/dist/
+*.spec
+*.egg-info/
+/site/
 
-# Private files
+# Файлы IDE и редакторов кода
+# Чтобы настройки одного разработчика не мешали другому.
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Личные или временные файлы
 todo.md

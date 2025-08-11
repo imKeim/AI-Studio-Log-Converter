@@ -10,7 +10,8 @@ A powerful and flexible tool to convert Google AI Studio chat logs (JSON format)
 - **📊 Metadata Table:** Generates a convenient Markdown table at the top of each file with key session parameters (Model, Temperature, etc.).
 - **⚙️ Full Configuration:** All settings, including templates and localization, are controlled via an easy-to-edit `config.yaml` file.
 - **🌐 Localization (EN/RU):** All generated headers and templates can be switched between English and Russian.
-- **✨ Flexible Interactive Mode:** A user-friendly wizard guides you, suggesting default paths (`input`/`output`) but allowing you to specify any folder on your system.
+- **✨ Flexible Interactive & CLI Modes:** Run a user-friendly wizard by double-clicking the `.exe` or use command-line arguments for automation.
+- **👀 Watch Mode:** Automatically convert files as they are added or modified in the input folder.
 - **📁 Smart Folder Structure:** Works with a clean `input`/`output` folder structure by default, which is created automatically.
 
 ## Usage for End-Users
@@ -51,15 +52,21 @@ Your converted `.md` files and any extracted images will appear in the specified
     ```bash
     pip install -r requirements.txt
     ```
-3.  Run the script for interactive mode:
-    ```bash
-    python ai-studio-log-converter.py
-    ```
-    Or use command-line arguments for automation:
-    ```bash
-    # Process a specific folder and save results to another folder
-    python ai-studio-log-converter.py "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite
-    ```
+3.  Place your JSON log files into the `input` folder.
+
+4.  Run the script:
+    *   For interactive mode:
+        ```bash
+        python ai-studio-log-converter.py
+        ```
+    *   Using command-line arguments:
+        ```bash
+        # Process a specific folder and save results to another folder
+        python ai-studio-log-converter.py "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite
+
+        # Run in watch mode to automatically convert new/modified files in the 'input' folder
+        python ai-studio-log-converter.py --watch
+        ```
 
 ## How to Build the `.exe` File
 
@@ -74,9 +81,10 @@ You can compile the script into a single, portable `.exe` file using PyInstaller
 
 3.  **Run the build command:**
     ```bash
-    python -m PyInstaller --onefile ai-studio-log-converter.py
+    python -m PyInstaller --onefile --hidden-import watchdog ai-studio-log-converter.py
     ```
     *   `--onefile`: This flag packages everything into a single executable file.
+    *   `--hidden-import watchdog`: **Crucial!** Explicitly tells PyInstaller to include the `watchdog` library, which it might miss otherwise during static analysis.
     *   `ai-studio-log-converter.py`: Make sure this matches the name of your Python script.
 
 4.  **Find the result:** The final `ai-studio-log-converter.exe` file will be located in the `dist` folder.
