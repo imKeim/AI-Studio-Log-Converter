@@ -1,9 +1,2 @@
-altgraph==0.17.4
-colorama==0.4.6
-packaging==25.0
-pefile==2023.2.7
-pyinstaller==6.15.0
-pyinstaller-hooks-contrib==2025.8
-pywin32-ctypes==0.2.3
-PyYAML==6.0.2
-tqdm==4.67.1
+pyyaml
+tqdm

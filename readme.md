@@ -1,89 +1,141 @@
 # AI Studio Log Converter
 
-A versatile command-line and interactive tool to convert Google AI Studio chat logs (.json) into well-formatted Markdown (.md) files, perfect for knowledge bases like Obsidian.
+A powerful and flexible tool to convert Google AI Studio chat logs (JSON format) into well-structured Markdown (`.md`) files, perfect for knowledge bases like Obsidian. It intelligently handles various data formats, extracts metadata, saves embedded images, and is highly customizable.
 
 ## Features
 
-- **Interactive Mode**: A user-friendly wizard guides you through the conversion process. No command-line skills needed!
-- **Command-Line Mode**: For power users and automation, all features are available via command-line arguments.
-- **External Configuration**: Easily customize settings in `config.yaml`.
-- **Custom Templates**: Full control over the YAML frontmatter and output filename via external template files.
-- **Recursive Search**: Process files in a directory and all its subdirectories.
-- **Flexible Output**: Save converted files next to their originals or redirect them all to a single folder.
-- **Safe by Default**: Won't overwrite existing Markdown files unless you explicitly allow it.
+- **🤖 Smart Parsing:** Intelligently handles multiple JSON formats from different AI Studio versions.
+- **🖼️ Image Handling:** Automatically saves `inlineData` (base64) images to an `assets` folder and creates local links.
+- **🔗 Link Placeholders:** Creates clickable links for `driveImage` and `youtubeVideo` references, preserving context.
+- **📊 Metadata Table:** Generates a convenient Markdown table at the top of each file with key session parameters (Model, Temperature, etc.).
+- **⚙️ Full Configuration:** All settings, including templates and localization, are controlled via an easy-to-edit `config.yaml` file.
+- **🌐 Localization (EN/RU):** All generated headers and templates can be switched between English and Russian.
+- **✨ Interactive & CLI Modes:** Run a user-friendly wizard by double-clicking the `.exe` or use command-line arguments for automation.
+- **📁 Smart Folder Structure:** Works with a clean `input`/`output` folder structure by default, which is created automatically.
 
-## Installation
+## Usage for End-Users
 
-Simply place `converter.exe` in any folder. For the best experience, keep it together with `config.yaml` and `frontmatter_template.txt`.
+This is the simplest way to use the converter without needing Python installed.
 
-If you are running from source, install the required Python packages:
-```bash
-pip install pyyaml tqdm
-```
+1.  Download the latest `.zip` archive from the [Releases](https://github.com/imKeim/AI-Studio-Log-Converter/releases) page.
+2.  Extract the archive. You will get a folder with `ai-studio-log-converter.exe`, `config.yaml`, and other template files.
+3.  Place your JSON log files (with or without `.json` extension) into the `input` folder.
+4.  Double-click `ai-studio-log-converter.exe` to run the interactive wizard.
+5.  Your converted `.md` files and any extracted images will appear in the `output` folder.
 
-## How to Use
+## Usage for Developers (Running from Source)
 
-### Standard Usage (Recommended)
+### Prerequisites
+- Python 3.8+
 
-1.  Run `ai-studio-log-converter.exe` once. It will automatically create two folders: `input` and `output`.
-2.  Place all your `.json` log files into the `input` folder. You can create subdirectories inside `input` if you wish.
-3.  Run `ai-studio-log-converter.exe` again.
-4.  The program will process all files from the `input` folder and save the converted `.md` files in the `output` folder.
+### Setup
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/imKeim/AI-Studio-Log-Converter.git
+    cd AI-Studio-Log-Converter
+    ```
+2.  Install the required dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Place your JSON log files into the `input` folder.
 
-The interactive mode will simply ask you about recursive search and overwriting files, as the input/output folders are now set by default.
+4.  Run the script:
+    *   For interactive mode:
+        ```bash
+        python ai-studio-log-converter.py
+        ```
+    *   Using command-line arguments:
+        ```bash
+        # Process default input folder, run recursively, and overwrite existing files
+        python ai-studio-log-converter.py -r --overwrite
 
-### Command-Line Mode (Advanced)
+        # Process a specific folder and save results to another folder
+        python ai-studio-log-converter.py "C:\path\to\my-logs" -o "D:\converted-notes"
+        ```
 
-You can override the default folders using command-line arguments.
+## How to Build the `.exe` File
 
-- `ai-studio-log-converter.exe`: Processes `./input` -> `./output`.
-- `ai-studio-log-converter.exe C:\my_logs`: Processes `C:\my_logs` -> `./output`.
-- `ai-studio-log-converter.exe C:\my_logs -o D:\final_notes`: Processes `C:\my_logs` -> `D:\final_notes`.
+You can compile the script into a single, portable `.exe` file using PyInstaller.
 
-### Command-Line Mode (Advanced)
+1.  **Install PyInstaller:**
+    ```bash
+    pip install pyinstaller
+    ```
 
-You can also use command-line arguments for automation.
+2.  **Navigate to the project directory** in your terminal.
 
-**Syntax:**
-`converter.exe [input_path] [options]`
+3.  **Run the build command:**
+    ```bash
+    python -m PyInstaller --onefile ai-studio-log-converter.py
+    ```
+    *   `--onefile`: This flag packages everything into a single executable file.
+    *   `ai-studio-log-converter.py`: Make sure this matches the name of your Python script.
 
-**Arguments & Options:**
-- `input_path`: (Required) Path to the source .json file or folder.
-- `-o`, `--output`: (Optional) Path to a single directory where all .md files will be saved. If omitted, files are saved next to their sources.
-- `-r`, `--recursive`: (Optional) Enable recursive search in subdirectories.
-- `--overwrite`: (Optional) Allow overwriting existing .md files.
-
-**Examples:**
-```bash
-# Convert all files in the current folder recursively
-converter.exe . -r
-
-# Convert a specific file and save the output in D:\Notes
-converter.exe "C:\logs\my_chat.json" -o "D:\Notes"
-
-# Convert all files from a folder, saving them next to originals, and allow overwriting
-converter.exe "C:\all_my_logs" -r --overwrite
-```
+4.  **Find the result:** The final `ai-studio-log-converter.exe` file will be located in the `dist` folder.
 
 ## Configuration
 
+The converter is fully customizable via the `config.yaml` and template files, which are created automatically on the first run.
+
 ### `config.yaml`
 
-This file controls the core behavior of the converter.
+This file controls the main behavior of the script.
 
-- `enable_frontmatter`: `true` or `false`. Toggles the creation of the YAML frontmatter block.
-- `filename_template`: A template for the output filename.
-  - `{date}`: The file's modification date.
-  - `{basename}`: The original filename without extension.
-- `date_format`: The format for the `{date}` variable (using Python's `strftime` syntax).
-- `user_header`, `model_header`: The Markdown headers for user and model turns.
-- `thought_block_template`: The template for the model's "thought" blocks (supports Obsidian callouts).
+```yaml
+# Language for the generated Markdown files. (en/ru)
+language: 'en'
+# Enable/disable the YAML frontmatter block.
+enable_frontmatter: true
+# Enable/disable the metadata table with run settings.
+enable_metadata_table: true
+# Template for the output filename. {date}, {basename}
+filename_template: '{date} - {basename}.md'
+# Date format for the {date} variable.
+date_format: '%Y-%m-%d'
 
-### `frontmatter_template.txt`
+# Text templates for different languages.
+localization:
+  en:
+    user_header: '## User Prompt 👤'
+    model_header: '## Model Response 🤖'
+    thought_block_template: |
+      > [!bug]- Model Thoughts 🧠
+      > {thought_text}
+    system_instruction_header: System Instruction ⚙️
+    system_instruction_template: |
+      > [!note]- {header}
+      > {text}
+    metadata_table:
+      header_parameter: Parameter
+      header_value: Value
+      model: '**Model**'
+      temperature: '**Temperature**'
+      top_p: '**Top-P**'
+      top_k: '**Top-K**'
+      web_search: '**Web Search**'
+      search_enabled: Enabled
+      search_disabled: Disabled
+    frontmatter_template_file: frontmatter_template_en.txt
+  ru:
+    # ... Russian localization ...
+```
 
-This file contains the exact template for the YAML frontmatter. It will be ignored if `enable_frontmatter` is `false` in `config.yaml`.
+### `frontmatter_template_en.txt`
 
-**Available variables:**
-- `{title}`: The note's title, derived from the filename.
-- `{cdate}`: The source file's creation date.
-- `{mdate}`: The source file's modification date.
+This file contains the template for the YAML frontmatter.
+
+```yaml
+---
+title: "{title}"
+aliases:
+  - "{title}"
+para: resource
+type: ll-log
+kind: google-ai-studio
+tags: 
+status: archived
+cdate: {cdate}
+mdate: {mdate}
+---
+```
