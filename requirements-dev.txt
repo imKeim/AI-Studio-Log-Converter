@@ -1,1 +1,3 @@
 pyinstaller
+sphinx
+furo

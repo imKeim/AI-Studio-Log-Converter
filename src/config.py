@@ -40,7 +40,8 @@ enable_frontmatter: {enable_frontmatter}
 # Enable/disable the metadata table with run settings (Model, Temperature, etc.).
 enable_metadata_table: {enable_metadata_table}
 
-# Enable/disable the grounding_grounding_metadata}
+# Enable/disable the grounding metadata block (web search sources).
+enable_grounding_metadata: {enable_grounding_metadata}
 
 # Template for the output filename.
 # Available variables: {{date}}, {{basename}}

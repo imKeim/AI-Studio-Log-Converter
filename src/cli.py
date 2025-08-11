@@ -8,6 +8,8 @@ for automatic processing of new files. It helps separate the user-facing
 CLI logic from the core conversion and GUI code.
 """
 
+__all__ = ["run_watch_mode", "run_interactive_mode", "LogFileEventHandler"]
+
 import time
 from pathlib import Path
 from watchdog.observers import Observer

@@ -9,6 +9,8 @@ like button clicks and path selections. It also includes the StdoutRedirector
 class to display console output within the GUI.
 """
 
+__all__ = ["run_gui_mode", "StdoutRedirector"]
+
 import sys
 import re
 import customtkinter as ctk

@@ -43,3 +43,16 @@ This directory contains all the core Python source code, organized into logical 
 -   **`gui.py`**: Contains all the code for the Graphical User Interface (GUI), which is built using the `customtkinter` library. It defines the window layout, all the widgets (buttons, text boxes), and the functions that handle user interactions.
 
 -   **`custom_theme.json`**: A JSON file that defines the custom color theme for the `customtkinter` GUI, ensuring a consistent and polished look.
+
+---
+
+## 📁 `docs/` Directory
+
+This directory contains all files related to the project's official documentation, which is built using Sphinx.
+
+-   **`build.bat` / `clean.bat`**: Custom batch scripts for Windows to simplify building and cleaning the documentation. `build.bat` runs the Sphinx build process, and `clean.bat` removes the generated `_build` directory.
+-   **`conf.py`**: The main Sphinx configuration file. It controls project metadata, extensions, themes, and other build settings.
+-   **`index.rst`**: The master document and entry point for the documentation. It contains the main welcome message and the root `toctree` directive that structures the entire documentation.
+-   **`api/`**: A subdirectory containing `.rst` files that define how the API documentation for each source module (`cli.py`, `config.py`, etc.) should be generated using `sphinx.ext.autodoc`.
+-   **`_build/`**: This directory contains the final generated HTML documentation. It is automatically created by the `build.bat` script and should not be tracked by version control.
+-   **`_static/` / `_templates/`**: Directories used by Sphinx for custom static assets (like CSS or images) and custom HTML templates, respectively.
