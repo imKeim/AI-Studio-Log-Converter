@@ -37,6 +37,27 @@ The program will then ask you a series of questions:
 
 Your converted `.md` files and any extracted images will appear in the specified output folder.
 
+## Running in the Background (Hidden Mode)
+
+If you want the converter to run silently in the background using **Watch Mode** without a visible console window, you can create a simple helper script.
+
+1.  **Create a new text file** in the same folder as `ai-studio-log-converter.exe`.
+2.  **Open the file** in a text editor (like Notepad) and paste the following code:
+    ```vbscript
+    Set WshShell = CreateObject("WScript.Shell")
+    WshShell.Run "ai-studio-log-converter.exe --watch", 0, false
+    ```
+    *   You can also specify a custom folder to watch, for example:
+        `WshShell.Run "ai-studio-log-converter.exe ""C:\My Logs\AI Studio"" --watch", 0, false`
+3.  **Save the file** with a `.vbs` extension (e.g., `start_watch_hidden.vbs`). Make sure to select "All Files (\*.\*)" in the "Save as type" dropdown to avoid saving it as a `.txt` file.
+
+Now, you can double-click the `start_watch_hidden.vbs` file to launch the converter silently.
+
+**To stop the background process:**
+- Open the **Task Manager** (`Ctrl+Shift+Esc`).
+- Go to the "Details" tab.
+- Find `ai-studio-log-converter.exe` in the list and click "End task".
+
 ## Usage for Developers (Running from Source)
 
 ### Prerequisites
