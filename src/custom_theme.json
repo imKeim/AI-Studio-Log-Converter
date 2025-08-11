@@ -1,0 +1,73 @@
+{
+  "CTk": {
+    "fg_color": ["#191919", "#191919"]
+  },
+  "CTkToplevel": {
+    "fg_color": ["#191919", "#191919"]
+  },
+  "CTkFrame": {
+    "corner_radius": 6,
+    "border_width": 1,
+    "fg_color": ["#2B2B2B", "#2B2B2B"],
+    "top_fg_color": ["#191919", "#191919"],
+    "border_color": ["#323232", "#323232"]
+  },
+  "CTkButton": {
+    "corner_radius": 6,
+    "border_width": 0,
+    "fg_color": ["#87a9ff", "#87a9ff"],
+    "hover_color": ["#6A8ED9", "#6A8ED9"],
+    "border_color": ["#87a9ff", "#87a9ff"],
+    "text_color": ["#191919", "#191919"],
+    "text_color_disabled": ["#9A9A9A", "#9A9A9A"]
+  },
+  "CTkLabel": {
+    "corner_radius": 0,
+    "fg_color": "transparent",
+    "text_color": ["#d4d4d4", "#d4d4d4"]
+  },
+  "CTkEntry": {
+    "corner_radius": 6,
+    "border_width": 1,
+    "fg_color": ["#2B2B2B", "#2B2B2B"],
+    "border_color": ["#323232", "#323232"],
+    "text_color": ["#d4d4d4", "#d4d4d4"],
+    "placeholder_text_color": ["#8A8A8A", "#8A8A8A"],
+    "text_color_disabled": ["#9A9A9A", "#9A9A9A"]
+  },
+  "CTkCheckBox": {
+    "corner_radius": 6,
+    "border_width": 1,
+    "fg_color": ["#87a9ff", "#87a9ff"],
+    "border_color": ["#87a9ff", "#87a9ff"],
+    "hover_color": ["#6A8ED9", "#6A8ED9"],
+    "text_color": ["#d4d4d4", "#d4d4d4"],
+    "text_color_disabled": ["#9A9A9A", "#9A9A9A"],
+    "checkmark_color": ["#191919", "#191919"]
+  },
+  "CTkTextbox": {
+    "corner_radius": 6,
+    "border_width": 1,
+    "fg_color": ["#2B2B2B", "#2B2B2B"],
+    "border_color": ["#323232", "#323232"],
+    "text_color": ["#d4d4d4", "#d4d4d4"],
+    "text_color_disabled": ["#9A9A9A", "#9A9A9A"],
+    "scrollbar_button_color": ["#87a9ff", "#87a9ff"],
+    "scrollbar_button_hover_color": ["#6A8ED9", "#6A8ED9"]
+  },
+  "CTkScrollbar": {
+    "corner_radius": 6,
+    "border_spacing": 4,
+    "fg_color": "transparent",
+    "button_color": ["#87a9ff", "#87a9ff"],
+    "button_hover_color": ["#6A8ED9", "#6A8ED9"]
+  },
+  "CTkFont": {
+    "family": "sans-serif",
+    "size": 12,
+    "weight": "normal",
+    "slant": "roman",
+    "underline": 0,
+    "overstrike": 0
+  }
+}

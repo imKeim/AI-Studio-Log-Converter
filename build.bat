@@ -5,7 +5,8 @@ REM Install dependencies, including PyInstaller
 pip install -r requirements.txt
 
 REM Build the .exe file using python -m
-python -m PyInstaller --onefile --windowed --name "AI-Studio-Log-Converter" "ai-studio-log-converter.pyw"
+REM --- Corrected --add-data paths and added the icon ---
+python -m PyInstaller --onefile --windowed --name "AI-Studio-Log-Converter" --icon="logo.ico" --add-data "src/custom_theme.json;." --add-data "logo.ico;." "ai-studio-log-converter.pyw"
 
 REM Check if the build was successful
 if %errorlevel% neq 0 (

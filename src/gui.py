@@ -14,6 +14,7 @@ import re
 import customtkinter as ctk
 from tkinter import filedialog
 from pathlib import Path
+import os
 
 # Import functions and constants from other modules.
 from .converter import find_json_files, process_files
@@ -57,15 +58,24 @@ class StdoutRedirector:
             self.text_space.configure(state='disabled')
             self.line_buffer = ""
 
-def run_gui_mode(config, lang_templates, frontmatter_template):
+def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     """
     Initializes and runs the main application GUI.
     """
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
+    # Set the appearance mode and load the custom theme
+    ctk.set_appearance_mode("Dark")
+    
+    # --- ИСПРАВЛЕНО: Используем resource_path для поиска темы ---
+    theme_path = resource_path("custom_theme.json")
+    ctk.set_default_color_theme(theme_path)
 
     app = ctk.CTk()
     app.title("AI Studio Log Converter")
+    
+    # --- ИСПРАВЛЕНО: Используем resource_path для поиска иконки ---
+    icon_path = resource_path("logo.ico")
+    if os.path.exists(icon_path):
+        app.iconbitmap(icon_path)
     app.geometry("800x600")
     app.minsize(800, 600)
 
@@ -164,7 +174,8 @@ def run_gui_mode(config, lang_templates, frontmatter_template):
     output_browse_button.grid(row=1, column=2, padx=10, pady=10)
 
     # Checkboxes
-    checkbox_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+    # --- ИСПРАВЛЕНО: Добавлен border_width=0 для удаления "призрачной" рамки ---
+    checkbox_frame = ctk.CTkFrame(settings_frame, fg_color="transparent", border_width=0)
     checkbox_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="w")
     
     recursive_var = ctk.BooleanVar()

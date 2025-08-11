@@ -4,6 +4,19 @@ import traceback
 from pathlib import Path
 import customtkinter as ctk
 from tkinter import messagebox
+import os # Добавлен импорт os
+
+# --- Новая вспомогательная функция ---
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+# ------------------------------------
 
 # Абсолютный импорт из папки src
 from src.config import (
@@ -97,7 +110,8 @@ def main():
 
     else:
         try:
-            run_gui_mode(config, lang_templates, frontmatter_template)
+            # Передаем функцию resource_path в GUI
+            run_gui_mode(config, lang_templates, frontmatter_template, resource_path)
         except Exception:
             log_crash(sys.exc_info())
             sys.exit(1)
