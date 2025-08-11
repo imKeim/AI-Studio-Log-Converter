@@ -6,6 +6,7 @@ import re
 import base64
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 from tqdm import tqdm
 import yaml
 from colorama import Fore, Style, init
@@ -34,6 +35,9 @@ enable_frontmatter: {enable_frontmatter}
 # Enable/disable the metadata table with run settings (Model, Temperature, etc.).
 enable_metadata_table: {enable_metadata_table}
 
+# Enable/disable the grounding metadata block (web search sources) at the end of a model's response.
+enable_grounding_metadata: {enable_grounding_metadata}
+
 # Template for the output filename.
 # Available variables: {{date}}, {{basename}}
 filename_template: '{filename_template}'
@@ -51,6 +55,7 @@ DEFAULT_CONFIG = {
     'language': 'en',
     'enable_frontmatter': True,
     'enable_metadata_table': True,
+    'enable_grounding_metadata': True, # <-- НОВАЯ ОПЦИЯ
     'filename_template': "{date} - {basename}.md",
     'date_format': "%Y-%m-%d",
     'localization': {
@@ -71,6 +76,12 @@ DEFAULT_CONFIG = {
                 'search_enabled': "Enabled",
                 'search_disabled': "Disabled"
             },
+            # <-- НОВЫЙ БЛОК ЛОКАЛИЗАЦИИ -->
+            'grounding_metadata': {
+                'spoiler_header': "Sources Used by the Model ℹ️",
+                'queries_header': "**Search Queries:**",
+                'sources_header': "**Sources:**"
+            },
             'frontmatter_template_file': "frontmatter_template_en.txt"
         },
         'ru': {
@@ -89,6 +100,12 @@ DEFAULT_CONFIG = {
                 'web_search': '**Поиск в Google**',
                 'search_enabled': "Включен",
                 'search_disabled': "Отключен"
+            },
+            # <-- НОВЫЙ БЛОК ЛОКАЛИЗАЦИИ -->
+            'grounding_metadata': {
+                'spoiler_header': "Источники, использованные моделью ℹ️",
+                'queries_header': "**Поисковые запросы:**",
+                'sources_header': "**Источники:**"
             },
             'frontmatter_template_file': "frontmatter_template_ru.txt"
         }
@@ -131,6 +148,7 @@ def load_or_create_config() -> dict:
                 language=DEFAULT_CONFIG['language'],
                 enable_frontmatter=str(DEFAULT_CONFIG['enable_frontmatter']).lower(),
                 enable_metadata_table=str(DEFAULT_CONFIG['enable_metadata_table']).lower(),
+                enable_grounding_metadata=str(DEFAULT_CONFIG['enable_grounding_metadata']).lower(),
                 filename_template=DEFAULT_CONFIG['filename_template'],
                 date_format=DEFAULT_CONFIG['date_format']
             ).strip()
@@ -195,6 +213,34 @@ def save_image_from_base64(base64_data: str, mime_type: str, md_path: Path) -> s
         return f"![[{image_filename}]]"
     except (base64.binascii.Error, IOError) as e:
         return f"[Error saving image: {e}]"
+
+# --- НОВАЯ ФУНКЦИЯ: Форматирование метаданных поиска ---
+def format_grounding_data(grounding_data: dict, lang_templates: dict) -> str:
+    """Formats grounding metadata into a Markdown spoiler block."""
+    loc = lang_templates.get('grounding_metadata', {})
+    spoiler_header = loc.get('spoiler_header', "Sources Used")
+    queries_header = loc.get('queries_header', "**Search Queries:**")
+    sources_header = loc.get('sources_header', "**Sources:**")
+    
+    content = [f"> [!info]- {spoiler_header}"]
+    
+    queries = grounding_data.get('webSearchQueries', [])
+    if queries:
+        content.append(f"> {queries_header}")
+        for query in queries:
+            content.append(f"> - `{query}`")
+    
+    sources = grounding_data.get('groundingSources', [])
+    if sources:
+        if queries: content.append(">") # Add a spacer line
+        content.append(f"> {sources_header}")
+        for source in sources:
+            uri = source.get('uri')
+            title = source.get('title') or urlparse(uri).hostname if uri else "Source"
+            num = source.get('referenceNumber', '')
+            content.append(f"> {num}. [{title}]({uri})")
+            
+    return "\n".join(content)
 
 def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, lang_templates: dict, frontmatter_template: str) -> (bool, str):
     try:
@@ -271,6 +317,7 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
         
         turn_content = []
         pending_thoughts = []
+        grounding_data = None
         header = lang_templates.get(f"{current_role}_header", f"## {current_role.capitalize()}")
 
         if i == 0 and current_role == 'user' and system_instruction:
@@ -287,6 +334,9 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
                     thought_block = lang_templates['thought_block_template'].format(thought_text=thought_text.replace(chr(10), chr(10) + '> '))
                     pending_thoughts.append(thought_block)
                 continue
+            
+            if 'grounding' in chunk:
+                grounding_data = chunk['grounding']
 
             if 'text' in chunk:
                 turn_content.append(chunk['text'].strip())
@@ -324,8 +374,12 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
                 if not any(full_part_text in content_part for content_part in turn_content):
                     turn_content.extend(part_content)
 
-        if current_role == 'model' and pending_thoughts:
-            turn_content = pending_thoughts + turn_content
+        if current_role == 'model':
+            if pending_thoughts:
+                turn_content = pending_thoughts + turn_content
+            if grounding_data and config.get('enable_grounding_metadata', False):
+                grounding_md = format_grounding_data(grounding_data, lang_templates)
+                turn_content.append(grounding_md)
 
         if turn_content:
             conversation_turns.append(f"{header}\n\n" + "\n\n".join(filter(None, turn_content)))
@@ -412,7 +466,6 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
     return success_count, skipped_count, error_count
 
 
-# --- Watch Mode ---
 class LogFileEventHandler(FileSystemEventHandler):
     def __init__(self, output_dir, overwrite, config, lang_templates, frontmatter_template):
         self.output_dir = output_dir
@@ -433,7 +486,6 @@ class LogFileEventHandler(FileSystemEventHandler):
     def _is_valid_json(self, file_path):
         try:
             p = Path(file_path)
-            # Игнорируем наши собственные файлы конфигурации и шаблоны
             if p.name == CONFIG_FILE_NAME or "frontmatter_template" in p.name:
                 return False
             with open(p, 'r', encoding='utf-8') as f:
@@ -444,11 +496,9 @@ class LogFileEventHandler(FileSystemEventHandler):
 
     def _process_file(self, json_path):
         now = time.time()
-        # Защита от "дребезга": не обрабатываем один и тот же файл чаще, чем раз в 2 секунды
         if json_path in self.last_processed and (now - self.last_processed.get(json_path, 0)) < 2:
             return
         
-        # Задержка, чтобы файл успел полностью записаться на диск
         time.sleep(0.5) 
         
         if self._is_valid_json(json_path):
@@ -512,6 +562,9 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
     process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
 
 def main():
+    # Добавляем импорт urlparse в начало файла, если его там еще нет
+    # from urllib.parse import urlparse
+    
     input_dir_default = Path(DEFAULT_INPUT_DIR)
     output_dir_default = Path(DEFAULT_OUTPUT_DIR)
     input_dir_default.mkdir(exist_ok=True)
