@@ -27,6 +27,30 @@ This is the simplest way to use the converter without needing Python installed.
 5.  Choose your options using the checkboxes.
 6.  Click "Start Conversion"!
 
+### Interface Options Explained
+
+The main window provides the following options to customize the conversion process:
+
+*   **`Fast Mode (no extension)`**
+    *   **What it does:** Significantly speeds up the scanning of the source folder.
+    *   **How it works:** Instead of opening and validating every single file for correct JSON format, this mode assumes that any file *without an extension* is a Google AI Studio log. This is the default behavior for downloaded logs.
+    *   **When to use it:** It's recommended to keep this enabled in most cases for maximum performance, especially if you have many files.
+    *   **When to disable it:** If your log files have an extension for some reason (e.g., `.json`), or if the source folder contains other extensionless files that are not logs.
+
+*   **`Search Recursively`**
+    *   **What it does:** Searches for log files not only in the specified source folder but in all of its subfolders as well.
+    *   **When to use it:** Useful if your logs are organized into a complex folder structure.
+
+*   **`Overwrite Existing`**
+    *   **What it does:** Determines what happens if a Markdown file with the same name already exists in the destination folder.
+    *   **How it works:** If enabled, the existing file will be replaced with the new one. If disabled, the existing file will be skipped, and the conversion for that log will not be performed.
+    *   **When to use it:** Enable this if you have updated the source logs and want to regenerate the Markdown files for them.
+
+*   **`Watch Mode`**
+    *   **What it does:** Runs the converter in a background mode to process files automatically.
+    *   **How it works:** The application will continuously monitor the source folder. As soon as a new log file is added or an existing one is modified, it will be converted automatically.
+    *   **Important Note:** In the GUI, this option is mainly for demonstration. For stable background operation without a visible window, it is recommended to use the command-line launch with the `--watch` flag, as described in the [Running in the Background](https://github.com/imKeim/AI-Studio-Log-Converter#running-in-the-background-hidden-mode) section.
+
 ## Running in the Background (Hidden Mode)
 
 To run **Watch Mode** silently without a visible console window, you can create a simple helper script.
