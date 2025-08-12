@@ -186,7 +186,7 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
         logo_label = ctk.CTkLabel(header_frame, image=logo_image, text="")
         logo_label.grid(row=0, column=0, padx=(10, 10), pady=10, sticky="w")
 
-    title_label = ctk.CTkLabel(header_frame, text="Google AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
+    title_label = ctk.CTkLabel(header_frame, text="AI Studio Log Converter", font=ctk.CTkFont(size=20, weight="bold"))
     title_label.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
     # --- Settings Frame (for input/output paths and options) ---

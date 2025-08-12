@@ -2,6 +2,8 @@
 
 A powerful and flexible tool to convert Google AI Studio chat logs (JSON format) into well-structured Markdown (`.md`) files, perfect for knowledge bases like Obsidian. It intelligently handles various data formats, extracts metadata, saves embedded images, and is highly customizable.
 
+![AI Studio Log Converter GUI](docs/images/app_screenshot.png)
+
 ## Features
 
 - **✨ Modern GUI:** A clean, user-friendly graphical interface built with CustomTkinter.
@@ -21,29 +23,25 @@ This is the simplest way to use the converter without needing Python installed.
 1.  Download the latest `.zip` archive from the [Releases](https://github.com/imKeim/AI-Studio-Log-Converter/releases) page.
 2.  Extract the archive. You will get a folder with `ai-studio-log-converter.exe`, `config.yaml`, and other template files.
 3.  Double-click `ai-studio-log-converter.exe` to run the graphical interface.
+4.  Use the "Browse..." buttons to select your source and output folders.
+5.  Choose your options using the checkboxes.
+6.  Click "Start Conversion"!
 
 ## Running in the Background (Hidden Mode)
 
-If you want the converter to run silently in the background using **Watch Mode** without a visible console window, you can create a simple helper script.
+To run **Watch Mode** silently without a visible console window, you can create a simple helper script.
 
 1.  **Create a new text file** in the same folder as `ai-studio-log-converter.exe`.
-2.  **Open the file** in a text editor (like Notepad) and paste the following code:
+2.  **Paste the following code:**
     ```vbscript
     Set WshShell = CreateObject("WScript.Shell")
     WshShell.Run "ai-studio-log-converter.exe --watch", 0, false
     ```
-    *   You can also specify a custom folder to watch, for example:
-        `WshShell.Run "ai-studio-log-converter.exe ""C:\My Logs\AI Studio"" --watch", 0, false`
-3.  **Save the file** with a `.vbs` extension (e.g., `start_watch_hidden.vbs`). Make sure to select "All Files (\*.\*)" in the "Save as type" dropdown to avoid saving it as a `.txt` file.
+3.  **Save the file** with a `.vbs` extension (e.g., `start_watch_hidden.vbs`).
 
-Now, you can double-click the `start_watch_hidden.vbs` file to launch the converter silently.
+Now, you can double-click the `.vbs` file to launch the converter silently. To stop it, use the Task Manager (`Ctrl+Shift+Esc`) to end the `ai-studio-log-converter.exe` process.
 
-**To stop the background process:**
-- Open the **Task Manager** (`Ctrl+Shift+Esc`).
-- Go to the "Details" tab.
-- Find `ai-studio-log-converter.exe` in the list and click "End task".
-
-## Usage for Developers (Running from Source)
+## For Developers
 
 ### Prerequisites
 - Python 3.8+
@@ -58,69 +56,41 @@ Now, you can double-click the `start_watch_hidden.vbs` file to launch the conver
     ```bash
     pip install -r requirements.txt
     ```
-3.  Place your JSON log files into the `input` folder.
+3.  Run the application:
+    ```bash
+    # To launch the GUI (default)
+    python ai-studio-log-converter.pyw
 
-4.  Run the script. There are three main modes:
+    # To launch the interactive CLI
+    python ai-studio-log-converter.pyw --cli
+    ```
 
-    *   **GUI Mode (Default):** The easiest way to use the converter. Simply run the script without any arguments.
-        ```bash
-        python ai-studio-log-converter.pyw
-        ```
-
-    *   **Interactive CLI Mode:** If you prefer the command line, use the `-c` or `--cli` flag to force the interactive console interface.
-        ```bash
-        python ai-studio-log-converter.pyw -c
-        ```
-
-    *   **Batch (Argument-based) Mode:** For automation and scripting, provide a source path and other options directly.
-        ```bash
-        # Process a specific folder and save results to another folder
-        python ai-studio-log-converter.pyw "C:\path\to\my-logs" -o "D:\converted-notes" -r --overwrite
-
-        # Run in watch mode to automatically convert new/modified files in the 'input' folder
-        python ai-studio-log-converter.pyw --watch
-        ```
-
-## How to Build the `.exe` File
-
-You can compile the script into a single, portable `.exe` file using PyInstaller.
+## Building the Executable
 
 ### Method 1: Using the Build Script (Recommended for Windows)
 
 The easiest way to build the application on Windows is to use the provided batch script.
 
-1.  **Install dependencies:** Make sure you have installed all required packages for development:
+1.  Install all development dependencies:
     ```bash
     pip install -r requirements-dev.txt
     ```
-2.  **Run the script:** Simply double-click the `build.bat` file in the project's root directory.
+2.  Simply double-click the `build.bat` file.
 
-The script will automatically install all dependencies, run the PyInstaller build command with the correct options, and clean up temporary files.
+The script will automatically install all dependencies, run PyInstaller with the correct options, and clean up temporary files.
 
 ### Method 2: Manual Build
 
-If you are not on Windows or prefer to run the command manually, follow these steps:
-
-1.  **Install all dependencies:**
+1.  Install all dependencies:
     ```bash
     pip install -r requirements.txt
     pip install -r requirements-dev.txt
     ```
-
-2.  **Navigate to the project directory** in your terminal.
-
-3.  **Run the build command:**
+2.  Run the build command from the project root:
     ```bash
     python -m PyInstaller --onefile --windowed --name "AI-Studio-Log-Converter" --icon="logo.ico" --add-data "src/custom_theme.json;." --add-data "logo.ico;." --add-data "logo.png;." "ai-studio-log-converter.pyw"
     ```
-    *   `--onefile`: Packages everything into a single executable.
-    *   `--windowed`: Prevents the console window from appearing when the `.exe` is run.
-    *   `--name`: Sets the name of the final executable.
-    *   `--icon`: Sets the application icon from the `logo.ico` file.
-    *   `--add-data`: Bundles additional files into the executable. This is used to include the theme (`custom_theme.json`) and image assets (`logo.ico`, `logo.png`).
-    *   `ai-studio-log-converter.pyw`: The entry point script for the application.
-
-4.  **Find the result:** The final `AI-Studio-Log-Converter.exe` file will be located in the `dist` folder.
+3.  The final `AI-Studio-Log-Converter.exe` will be in the `dist` folder.
 
 ## Configuration
 
@@ -186,3 +156,4 @@ status: archived
 cdate: {cdate}
 mdate: {mdate}
 ---
+```
