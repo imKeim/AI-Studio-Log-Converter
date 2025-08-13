@@ -1,0 +1,17 @@
+{
+  "chunkedPrompt": {
+    "chunks": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "inlineData": {
+              "mimeType": "image/png",
+              "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
