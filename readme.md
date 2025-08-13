@@ -9,7 +9,7 @@ A powerful and flexible tool to convert Google AI Studio chat logs (JSON format)
 - **✨ Modern GUI:** A clean, user-friendly graphical interface built with CustomTkinter.
 - **🤖 Smart Parsing:** Intelligently handles multiple JSON formats from different AI Studio versions.
 - **🖼️ Image Handling:** Automatically saves `inlineData` (base64) images to an `assets` folder and creates local links.
-- **🔗 Link Placeholders:** Creates clickable links for `driveImage` and `youtubeVideo` references, preserving context.
+- **🔗 Link Placeholders:** Creates clickable links for all Google Drive attachments (`driveImage`, `driveDocument`, `driveVideo`) and `youtubeVideo` references, preserving context.
 - **📊 Metadata Table:** Generates a convenient Markdown table at the top of each file with key session parameters (Model, Temperature, etc.).
 - **⚙️ Full Configuration:** All settings, including templates and localization, are controlled via an easy-to-edit `config.yaml` file.
 - **🌐 Localization (EN/RU):** All generated headers and templates can be switched between English and Russian.
@@ -35,7 +35,7 @@ The main window provides the following options to customize the conversion proce
     *   **What it does:** Significantly speeds up the scanning of the source folder.
     *   **How it works:** Instead of opening and validating every single file for correct JSON format, this mode assumes that any file *without an extension* is a Google AI Studio log. This is the default behavior for downloaded logs.
     *   **When to use it:** It's recommended to keep this enabled in most cases for maximum performance, especially if you have many files.
-    *   **When to disable it:** If your log files have an extension for some reason (e.g., `.json`), or if the source folder contains other extensionless files that are not logs.
+    *   **When to disable it:** If your log files have an extension for some reason (e.g., `.json`), or if the source folder contains other extensionless files that are not logs. **Disabling Fast Mode is also required to use the Google Drive attachment indicator feature.**
 
 *   **`Search Recursively`**
     *   **What it does:** Searches for log files not only in the specified source folder but in all of its subfolders as well.
@@ -116,6 +116,19 @@ The script will automatically install all dependencies, run PyInstaller with the
     ```
 3.  The final `AI-Studio-Log-Converter.exe` will be in the `dist` folder.
 
+## Testing
+
+The project uses `pytest` for automated testing to ensure code quality and prevent regressions.
+
+1.  Install all development dependencies:
+    ```bash
+    pip install -r requirements-dev.txt
+    ```
+2.  Run the tests from the project root directory:
+    ```bash
+    pytest
+    ```
+
 ## Configuration
 
 The converter is fully customizable via the `config.yaml` and template files, which are created automatically on the first run.
@@ -131,8 +144,20 @@ language: 'en'
 enable_frontmatter: true
 # Enable/disable the metadata table with run settings.
 enable_metadata_table: true
-# Template for the output filename. {date}, {basename}
-filename_template: '{date} - {basename}.md'
+# Enable/disable the grounding metadata block (web search sources).
+enable_grounding_metadata: true
+
+# --- Google Drive Attachment Indicator ---
+# If enabled, the converter will check for any Google Drive links in the log
+# and add a visual indicator to the filename and a tag to the frontmatter.
+# This feature only works when 'Fast Mode' is DISABLED.
+enable_gdrive_indicator: true
+gdrive_filename_indicator: '[A] '
+gdrive_frontmatter_tag: 'has-gdrive-attachment'
+
+# Template for the output filename.
+# Available variables: {date}, {basename}, {gdrive_indicator}
+filename_template: '{date} - {gdrive_indicator}{basename}.md'
 # Date format for the {date} variable.
 date_format: '%Y-%m-%d'
 
