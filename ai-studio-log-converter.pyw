@@ -136,7 +136,7 @@ def main():
             if args.input_path == input_dir_default:
                  print(Fore.YELLOW + "Please place your files there and run the program again.")
             return
-        process_files(files, args.output, args.overwrite, config, lang_templates, frontmatter_template)
+        process_files(files, args.output, args.overwrite, config, lang_templates, frontmatter_template, fast_mode=args.fast)
 
     elif args.cli:
         # Interactive CLI mode for users who prefer the command line.

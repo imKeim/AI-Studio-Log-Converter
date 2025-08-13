@@ -94,7 +94,8 @@ class LogFileEventHandler(FileSystemEventHandler):
         if self._is_valid_json(json_path):
             print(Fore.CYAN + f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected valid file '{json_path.name}'. Processing...")
             # Call the main processing function from the converter module.
-            process_files([json_path], self.output_dir, self.overwrite, self.config, self.lang_templates, self.frontmatter_template)
+            # Watch mode is always reliable (not fast mode)
+            process_files([json_path], self.output_dir, self.overwrite, self.config, self.lang_templates, self.frontmatter_template, fast_mode=False)
             # Record the time of processing for the debounce mechanism.
             self.last_processed[json_path] = now
 
@@ -120,7 +121,7 @@ def run_watch_mode(input_dir, output_dir, overwrite, config, lang_templates, fro
     print(Style.BRIGHT + "Performing initial scan of the directory...")
     initial_files = find_json_files(input_dir, recursive=False, fast_mode=False) # Watch mode should always be reliable
     if initial_files:
-        process_files(initial_files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+        process_files(initial_files, output_dir, overwrite, config, lang_templates, frontmatter_template, fast_mode=False)
     else:
         print("No initial files to process.")
     
@@ -190,4 +191,4 @@ def run_interactive_mode(config, lang_templates, frontmatter_template):
         return
 
     # Run the main processing function on the found files.
-    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template, fast_mode=fast_mode)

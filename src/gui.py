@@ -94,8 +94,8 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     icon_path = resource_path("logo.ico")
     if os.path.exists(icon_path):
         app.iconbitmap(icon_path)
-    app.geometry("800x600")
-    app.minsize(800, 600)
+    app.geometry("900x600")
+    app.minsize(900, 600)
 
     # --- GUI Helper Functions ---
 
@@ -134,7 +134,7 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
                 if not files:
                     print(f"\n⚠️ No valid JSON files found in '{input_path}'.")
                 else:
-                    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template)
+                    process_files(files, output_dir, overwrite, config, lang_templates, frontmatter_template, fast_mode=fast_mode)
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
         finally:
@@ -163,6 +163,10 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
         overwrite = overwrite_var.get()
         watch_mode = watch_var.get()
         fast_mode = fast_mode_var.get()
+        
+        # We temporarily update the config dict with the user's choice from the GUI.
+        # This ensures the user's selection is respected for the current run.
+        config['enable_gdrive_indicator'] = gdrive_indicator_var.get()
 
         # Create and start the background thread to do the heavy lifting.
         worker_thread = threading.Thread(
@@ -171,6 +175,15 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
         )
         worker_thread.daemon = True  # Allows the app to exit even if the thread is running.
         worker_thread.start()
+
+    def toggle_gdrive_indicator_visibility():
+        """Shows or hides the GDrive attachment indicator checkbox based on Fast Mode state."""
+        if fast_mode_var.get():
+            # If Fast Mode is enabled, hide the checkbox
+            gdrive_indicator_checkbox.pack_forget()
+        else:
+            # If Fast Mode is disabled, show the checkbox
+            gdrive_indicator_checkbox.pack(side="left", padx=5)
 
     # --- GUI Layout ---
     app.grid_columnconfigure(1, weight=1)
@@ -215,7 +228,7 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     checkbox_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="w")
     
     fast_mode_var = ctk.BooleanVar(value=True)
-    fast_mode_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Fast Mode (no extension)", variable=fast_mode_var)
+    fast_mode_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Fast Mode (no extension)", variable=fast_mode_var, command=toggle_gdrive_indicator_visibility)
     fast_mode_checkbox.pack(side="left", padx=5)
 
     recursive_var = ctk.BooleanVar()
@@ -230,6 +243,12 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
     watch_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Watch Mode", variable=watch_var)
     watch_checkbox.pack(side="left", padx=5)
 
+    # This checkbox is for the GDrive attachment indicator.
+    # Its visibility is controlled by the toggle_gdrive_indicator_visibility function.
+    gdrive_indicator_var = ctk.BooleanVar(value=config.get('enable_gdrive_indicator', True))
+    gdrive_indicator_checkbox = ctk.CTkCheckBox(checkbox_frame, text="Add GDrive Attachment Indicator", variable=gdrive_indicator_var)
+    # The checkbox is not packed here initially; the toggle function will handle it.
+
     # --- Main Action Button ---
     start_button = ctk.CTkButton(app, text="Start Conversion", command=start_conversion, height=40)
     start_button.grid(row=2, column=0, columnspan=2, padx=20, pady=20, sticky="ew")
@@ -242,5 +261,8 @@ def run_gui_mode(config, lang_templates, frontmatter_template, resource_path):
 
     # --- Final Setup ---
     sys.stdout = StdoutRedirector(log_textbox)
+
+    # Call the function on startup to set the initial correct state of the GUI.
+    toggle_gdrive_indicator_visibility()
 
     app.mainloop()

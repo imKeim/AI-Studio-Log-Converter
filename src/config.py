@@ -44,8 +44,22 @@ enable_metadata_table: {enable_metadata_table}
 # Enable/disable the grounding metadata block (web search sources).
 enable_grounding_metadata: {enable_grounding_metadata}
 
+# --- Google Drive Attachment Indicator ---
+# If enabled, the converter will check for any Google Drive links in the log
+# (e.g., driveImage, driveDocument, driveVideo).
+# It will then add a visual indicator to the filename and a tag to the frontmatter.
+# This feature only works when 'Fast Mode' is DISABLED.
+enable_gdrive_indicator: {enable_gdrive_indicator}
+
+# The text to insert into the filename if a GDrive link is found.
+# Note the trailing space for better formatting, e.g., "[A] "
+gdrive_filename_indicator: '{gdrive_filename_indicator}'
+
+# The tag to add to the YAML frontmatter if a GDrive link is found.
+gdrive_frontmatter_tag: '{gdrive_frontmatter_tag}'
+
 # Template for the output filename.
-# Available variables: {{date}}, {{basename}}
+# Available variables: {{date}}, {{basename}}, {{gdrive_indicator}}
 filename_template: '{filename_template}'
 
 # Date format for the {{date}} variable in the filename.
@@ -65,7 +79,10 @@ DEFAULT_CONFIG = {
     'enable_frontmatter': True,
     'enable_metadata_table': True,
     'enable_grounding_metadata': True,
-    'filename_template': "{date} - {basename}.md",
+    'enable_gdrive_indicator': True,
+    'gdrive_filename_indicator': "[A] ",
+    'gdrive_frontmatter_tag': "has-gdrive-attachment",
+    'filename_template': "{date} - {gdrive_indicator}{basename}.md",
     'date_format': "%Y-%m-%d",
     'localization': {
         'en': {
@@ -171,6 +188,9 @@ def load_or_create_config() -> dict:
                 enable_frontmatter=str(DEFAULT_CONFIG['enable_frontmatter']).lower(),
                 enable_metadata_table=str(DEFAULT_CONFIG['enable_metadata_table']).lower(),
                 enable_grounding_metadata=str(DEFAULT_CONFIG['enable_grounding_metadata']).lower(),
+                enable_gdrive_indicator=str(DEFAULT_CONFIG['enable_gdrive_indicator']).lower(),
+                gdrive_filename_indicator=DEFAULT_CONFIG['gdrive_filename_indicator'],
+                gdrive_frontmatter_tag=DEFAULT_CONFIG['gdrive_frontmatter_tag'],
                 filename_template=DEFAULT_CONFIG['filename_template'],
                 date_format=DEFAULT_CONFIG['date_format']
             ).strip()

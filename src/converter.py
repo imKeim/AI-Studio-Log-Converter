@@ -4,7 +4,7 @@ import re
 import base64
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from tqdm import tqdm
 import sys
 from colorama import Fore, Style
@@ -32,13 +32,40 @@ def _read_log_data(json_path: Path) -> tuple[dict | None, str]:
     except Exception as e:
         return None, f"Failed to read file. Details: {e}"
 
-def _build_frontmatter(json_path: Path, title: str, template: str) -> str:
+def _check_for_gdrive_links(log_data: dict) -> bool:
+    """Efficiently scans log data for any Google Drive attachment references."""
+    # A list of all known keys for Google Drive attachments.
+    ATTACHMENT_KEYS = ["driveImage", "driveDocument", "driveVideo"]
+    
+    chunks = log_data.get('chunkedPrompt', {}).get('chunks') or log_data.get('history', [])
+    for chunk in chunks:
+        # Check if any of the attachment keys exist in the chunk itself.
+        if any(key in chunk for key in ATTACHMENT_KEYS):
+            return True
+        # Also check within the 'parts' list of a chunk.
+        for part in chunk.get('parts', []):
+            if any(key in part for key in ATTACHMENT_KEYS):
+                return True
+    return False
+
+def _build_frontmatter(json_path: Path, title: str, template: str, has_gdrive_link: bool, config: dict) -> str:
     """Builds the YAML frontmatter block."""
     try:
         mtime = datetime.fromtimestamp(json_path.stat().st_mtime)
         cdate = mtime.strftime('%Y-%m-%d %H:%M:%S')
         mdate = cdate
-        return template.format(title=title, cdate=cdate, mdate=mdate).strip()
+        
+        # Format the main template
+        frontmatter = template.format(title=title, cdate=cdate, mdate=mdate).strip()
+        
+        # If a GDrive link exists, add the specific tag
+        if has_gdrive_link and config.get('enable_gdrive_indicator', False):
+            tag_to_add = config.get('gdrive_frontmatter_tag', 'has-gdrive-attachment')
+            # A simple but effective way to add the tag
+            if "tags:" in frontmatter:
+                frontmatter = frontmatter.replace("tags:", f"tags: {tag_to_add}", 1)
+        
+        return frontmatter
     except FileNotFoundError:
         return ""
 
@@ -120,10 +147,14 @@ def _build_conversation_turns(log_data: dict, md_path: Path, config: dict, lang_
             if 'text' in chunk:
                 turn_content.append(chunk.get('text', '').strip())
             
-            if drive_image_data := chunk.get('driveImage'):
-                if drive_id := drive_image_data.get('id'):
-                    turn_content.append(f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
-            
+            # Handle all known Google Drive attachment types
+            attachment_keys = {"driveImage": "Image", "driveDocument": "Document", "driveVideo": "Video"}
+            for key, label in attachment_keys.items():
+                if attachment_data := chunk.get(key):
+                    if drive_id := attachment_data.get('id'):
+                        title = unquote(attachment_data.get('title', f"{label} from Google Drive"))
+                        turn_content.append(f"[{title} (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
+
             if youtube_video_data := chunk.get('youtubeVideo'):
                 if video_id := youtube_video_data.get('id'):
                     turn_content.append(f"[YouTube Video (ID: {video_id})](https://www.youtube.com/watch?v={video_id})")
@@ -143,9 +174,12 @@ def _build_conversation_turns(log_data: dict, md_path: Path, config: dict, lang_
                         if mime_type := inline_data.get('mimeType'):
                             part_content.append(save_image_from_base64(b64_data, mime_type, md_path))
                 
-                elif drive_image_data := part.get('driveImage'):
-                    if drive_id := drive_image_data.get('id'):
-                        part_content.append(f"[Image from Google Drive (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
+                # Handle all known Google Drive attachment types within parts
+                for key, label in attachment_keys.items():
+                    if attachment_data := part.get(key):
+                        if drive_id := attachment_data.get('id'):
+                            title = unquote(attachment_data.get('title', f"{label} from Google Drive"))
+                            part_content.append(f"[{title} (ID: {drive_id})](https://drive.google.com/file/d/{drive_id})")
                 
                 full_part_text = "".join(part_content)
                 if not any(full_part_text in content_part for content_part in turn_content):
@@ -182,12 +216,6 @@ def get_clean_title(base_title: str) -> str:
     Many log files are prefixed with a date (e.g., "2023-10-27 - My Conversation").
     This function strips that date prefix, returning only the descriptive part of the title.
     If the filename doesn't match the expected pattern, it returns the original string.
-
-    Args:
-        base_title (str): The original filename or title string.
-
-    Returns:
-        str: The cleaned-up title without the date prefix.
     """
     match = re.match(r"^\d{4}-\d{2}-\d{2} - (.*)", base_title)
     if match:
@@ -268,29 +296,28 @@ def format_grounding_data(grounding_data: dict, lang_templates: dict) -> str:
             
     return "\n".join(content)
 
-def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, lang_templates: dict, frontmatter_template: str) -> (bool, str):
+def convert_llm_log_to_markdown(log_data: dict, json_path: Path, md_path: Path, config: dict, lang_templates: dict, frontmatter_template: str, has_gdrive_link: bool) -> (bool, str):
     """
     Converts a single AI Studio JSON log file into a structured Markdown file.
 
     This function now acts as a high-level orchestrator, delegating tasks
-    to smaller, specialized helper functions.
+    to smaller, specialized helper functions. It receives pre-parsed log_data
+    for efficiency.
 
     Args:
-        json_path (Path): The path to the input JSON log file.
+        log_data (dict): The pre-parsed content of the JSON log file.
+        json_path (Path): The path to the original input JSON log file (for metadata).
         md_path (Path): The path where the output Markdown file will be saved.
         config (dict): A dictionary of user-defined configuration settings.
         lang_templates (dict): A dictionary containing localized strings for UI elements.
         frontmatter_template (str): A string template for the YAML frontmatter.
+        has_gdrive_link (bool): A flag indicating if a GDrive link was found.
 
     Returns:
         tuple[bool, str]: A tuple containing a boolean indicating success (True) or failure (False),
                           and a string with an error message if the conversion failed.
     """
-    log_data, error_msg = _read_log_data(json_path)
-    if not log_data:
-        return False, error_msg
-
-    # Check for essential content after reading the file.
+    # Check for essential content.
     if not log_data.get('systemInstruction') and not (log_data.get('chunkedPrompt', {}).get('chunks') or log_data.get('history')):
         return False, "JSON file contains no 'systemInstruction' and no valid dialog structure."
 
@@ -300,7 +327,7 @@ def convert_llm_log_to_markdown(json_path: Path, md_path: Path, config: dict, la
     md_parts = []
     
     if config.get('enable_frontmatter', False):
-        md_parts.append(_build_frontmatter(json_path, final_title, frontmatter_template))
+        md_parts.append(_build_frontmatter(json_path, final_title, frontmatter_template, has_gdrive_link, config))
 
     md_parts.append(f"# {final_title}")
 
@@ -385,7 +412,7 @@ def find_json_files(path: Path, recursive: bool, fast_mode: bool = False):
                 
     return sorted(valid_json_files)
 
-def process_files(files_to_process, output_dir, overwrite, config, lang_templates, frontmatter_template):
+def process_files(files_to_process, output_dir, overwrite, config, lang_templates, frontmatter_template, fast_mode=False):
     """
     Processes a list of JSON files, converting each to Markdown.
 
@@ -400,6 +427,7 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
         config (dict): The main configuration dictionary.
         lang_templates (dict): The dictionary for localized strings.
         frontmatter_template (str): The template for YAML frontmatter.
+        fast_mode (bool): If True, skips the check for GDrive links.
 
     Returns:
         tuple[int, int, int]: A tuple containing the counts of successful, skipped, and failed conversions.
@@ -413,6 +441,14 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
     # Use tqdm for a progress bar to show the overall conversion progress.
     with tqdm(total=len(files_to_process), desc="Converting", unit="file", ncols=100, file=sys.stdout) as pbar:
         for json_path in files_to_process:
+            # Read the file once to get its content for all checks and conversion
+            log_data, error_msg = _read_log_data(json_path)
+            if not log_data:
+                error_count += 1
+                tqdm.write(Fore.RED + f"\n❌ ERROR reading '{json_path.name}': {error_msg}")
+                pbar.update(1)
+                continue
+
             try:
                 # Generate the date string for the new filename from the file's metadata.
                 mtime = datetime.fromtimestamp(json_path.stat().st_mtime)
@@ -420,18 +456,32 @@ def process_files(files_to_process, output_dir, overwrite, config, lang_template
             except FileNotFoundError:
                 date_str = "XXXX-XX-XX"
 
+            # Check for GDrive links, but ONLY if the feature is enabled AND Fast Mode is OFF
+            has_gdrive_link = False
+            gdrive_indicator = ""
+            if config.get('enable_gdrive_indicator', False) and not fast_mode:
+                has_gdrive_link = _check_for_gdrive_links(log_data)
+                if has_gdrive_link:
+                    gdrive_indicator = config.get('gdrive_filename_indicator', '')
+
             # Construct the new filename from the template in the config.
             filename = json_path.name
             base_filename = filename[:-5] if filename.lower().endswith('.json') else filename
-            new_md_filename = config['filename_template'].format(date=date_str, basename=base_filename)
+            new_md_filename = config['filename_template'].format(
+                date=date_str, 
+                basename=base_filename,
+                gdrive_indicator=gdrive_indicator
+            )
             output_md_path = output_dir / new_md_filename
 
             # Skip conversion if the file exists and overwrite is disabled.
             if not overwrite and output_md_path.exists():
                 skipped_count += 1
             else:
-                # Call the main conversion function for the individual file.
-                success, error_msg = convert_llm_log_to_markdown(json_path, output_md_path, config, lang_templates, frontmatter_template)
+                # Call the main conversion function, passing the pre-loaded data.
+                success, error_msg = convert_llm_log_to_markdown(
+                    log_data, json_path, output_md_path, config, lang_templates, frontmatter_template, has_gdrive_link
+                )
                 if success:
                     success_count += 1
                 else:
