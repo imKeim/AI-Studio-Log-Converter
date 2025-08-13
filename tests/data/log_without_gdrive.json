@@ -1,0 +1,8 @@
+{
+  "chunkedPrompt": {
+    "chunks": [
+      { "text": "Hello", "role": "user" },
+      { "text": "Hi there!", "role": "model" }
+    ]
+  }
+}

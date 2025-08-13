@@ -1,0 +1,9 @@
+{
+  "chunkedPrompt": {
+    "chunks": [
+      { "text": "Hello", "role": "user" },
+      { "driveDocument": { "id": "some-doc-id" }, "role": "user" },
+      { "text": "Hi there!", "role": "model" }
+    ]
+  }
+}
