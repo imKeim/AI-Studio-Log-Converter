@@ -14,7 +14,7 @@ This document provides a clear overview of the files and directories in the AI S
 
 -   **`requirements.txt`**: Lists all the Python packages required for the application to run (its runtime dependencies). These can be installed using `pip install -r requirements.txt`.
 
--   **`requirements-dev.txt`**: Lists additional packages that are only needed for development or building the project, such as `pyinstaller`. This keeps the main dependencies clean.
+-   **`requirements-dev.txt`**: Lists additional packages that are only needed for development, such as `pyinstaller` for building the application and `pytest` for running automated tests.
 
 -   **`README.md`**: The main documentation file for the project. It contains a detailed description, features, usage instructions for both end-users and developers, and build steps.
 
@@ -43,6 +43,16 @@ This directory contains all the core Python source code, organized into logical 
 -   **`gui.py`**: Contains all the code for the Graphical User Interface (GUI), which is built using the `customtkinter` library. It defines the window layout, all the widgets (buttons, text boxes), and the functions that handle user interactions.
 
 -   **`custom_theme.json`**: A JSON file that defines the custom color theme for the `customtkinter` GUI, ensuring a consistent and polished look.
+
+---
+
+## 📁 `tests/` Directory
+
+This directory contains all the automated tests for the project, which are run using `pytest`. These tests ensure that new features don't break existing functionality (regression testing) and that the core logic works as expected.
+
+-   **`conftest.py`**: A special `pytest` file used to define "fixtures" — reusable helper functions that set up data and environments for the tests.
+-   **`test_converter.py`**: Contains all the test cases for the core logic found in `src/converter.py`.
+-   **`data/`**: A subdirectory holding small, predictable data files (e.g., sample JSON logs) used as input for the tests.
 
 ---
 
